@@ -1,6 +1,6 @@
-# Test report - v3.2.1
+# Test report - v3.2.2
 
-Date: 2026-09-09. Result: **PASS, 103 named tests, 0 failures, 0 errors.**
+Date: 2026-09-09. Result: **PASS, 107 named tests, 0 failures, 0 errors.**
 
 v3.2.1 re-ran the suite on macOS (Darwin 25.6, PHP 8.5.10) in addition to Linux. That second platform
 exposed a real defect: the PreToolUse guard compared the raw session `cwd` against a `__DIR__`-derived
@@ -9,9 +9,9 @@ all 103 tests now pass on both platforms. The restored agent/rule/config source 
 self-check (20 agent frontmatters, hook fragment, 21 PHP files) and by the installer group. The final exact source state was re-verified by test group after the all-suite wrapper hit an environment wall-clock timeout; all five groups passed independently.
 
 Coverage groups:
-- GuardTests: 17
+- GuardTests: 20
 - PrdTests: 12
-- WorkflowTests: 34
+- WorkflowTests: 35
 - PublisherTests: 21
 - InstallerTests: 19
 

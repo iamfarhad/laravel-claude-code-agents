@@ -57,8 +57,42 @@ function authorizeWrite(string $role,string $path,string $session): void {
     if (in_array($rel,['CLAUDE.md','claude.md','README.md','.gitignore','.gitmodules','.gitattributes','.gitlab-ci.yml'],true) || preg_match('~(^|/)\.env(?:\.|$)~',$rel)) throw new \RuntimeException('Protected project configuration.');
     implementationGate($session);
 }
-function authorizeRead(string $path): void {
-    $p=safePath($path); $rel=relative($p);
+/**
+ * Claude Code persists oversized tool output under its own session directory and then reads
+ * it back. That file is this session's OWN authorized broker output, and no CES role can
+ * write there, so it stays readable even though it sits outside the repository. Scoped to
+ * exactly `<projects>/<slug>/<this session id>/tool-results/`: another session's directory,
+ * another project's transcripts and the rest of the host all remain denied. The resolved
+ * real path is what gets checked, so a symlink planted there cannot escape the root.
+ */
+function sessionOutputRoots(?string $transcript): array {
+    $candidates=[];
+    $home=getenv('HOME');
+    if (is_string($home) && $home!=='') $candidates[]=rtrim($home,'/').'/.claude/projects';
+    if (is_string($transcript) && $transcript!=='' && !str_contains($transcript,"\0")) {
+        $slug=realpath(dirname($transcript));
+        if ($slug!==false) $candidates[]=dirname($slug);
+    }
+    $roots=[];
+    foreach ($candidates as $candidate) { $real=realpath($candidate); if ($real!==false) $roots[$real]=true; }
+    return array_keys($roots);
+}
+function readableSessionOutput(string $path, string $session, ?string $transcript): bool {
+    if ($path==='' || str_contains($path,"\0") || trim($session)==='') return false;
+    $real=realpath($path);
+    if ($real===false) return false;
+    foreach (sessionOutputRoots($transcript) as $root) {
+        if (!within($real,$root)) continue;
+        $parts=explode('/',trim(substr($real,strlen($root)),'/'));
+        if (count($parts)>=3 && $parts[1]===$session && $parts[2]==='tool-results') return true;
+    }
+    return false;
+}
+function authorizeRead(string $path, string $session='', ?string $transcript=null): void {
+    if (readableSessionOutput($path,$session,$transcript)) return;
+    try { $p=safePath($path); }
+    catch (\Throwable $e) { throw new \RuntimeException($e->getMessage().' CES roles read inside the repository; the only exception is this session\'s own persisted tool output.'); }
+    $rel=relative($p);
     if (preg_match('~(^|/)(\.env(?:\.[^/]*)?|id_rsa|id_ed25519|credentials(?:\.json)?)$~',$rel) && !str_ends_with($rel,'.env.example')) throw new \RuntimeException('Direct secret-file access is denied.');
     if (within($p,root().'/.claude/engineering-system/runtime/tickets')) throw new \RuntimeException('Broker tickets are not agent-readable artifacts.');
 }

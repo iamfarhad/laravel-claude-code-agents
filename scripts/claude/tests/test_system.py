@@ -116,6 +116,33 @@ class GuardTests(Fixture):
  def test_secret_path_read_denied(self):
   for path in ['.env','nested/.env.production','credentials.json','../other']:
    with self.subTest(path=path): self.assertEqual(self.hook('tester','Read',{'file_path':path}).returncode,2)
+ def session_output(self,session,name='big.txt',slug='-project-slug',sub='tool-results'):
+  """Build a Claude Code persisted-tool-output path under a fake HOME."""
+  home=self.outer/'fakehome'; d=home/'.claude/projects'/slug/session/sub; d.mkdir(parents=True,exist_ok=True)
+  f=d/name; f.write_text('persisted broker output'); self.env['HOME']=str(home); return f
+ def test_own_persisted_tool_output_is_readable(self):
+  """Claude Code persists oversized tool output outside the repo and reads it back."""
+  f=self.session_output(self.session)
+  self.assertEqual(self.hook('engineering-orchestrator','Read',{'file_path':str(f)}).returncode,0)
+  self.assertEqual(self.hook('peer-reviewer','Read',{'file_path':str(f)}).returncode,0)
+ def test_other_sessions_and_sibling_paths_still_denied(self):
+  self.session_output(self.session)
+  for path,label in [
+    (self.session_output('another-session-id'),'another session'),
+    (self.session_output(self.session,sub='subagents'),'non tool-results sibling'),
+    (self.outer/'fakehome/.claude/projects/-project-slug'/self.session,'the session directory itself'),
+    (self.outer/'fakehome/.ssh/id_rsa','a home secret'),
+  ]:
+   with self.subTest(label=label):
+    p=Path(str(path))
+    if not p.exists():
+     p.parent.mkdir(parents=True,exist_ok=True); p.write_text('x')
+    self.assertEqual(self.hook('tester','Read',{'file_path':str(p)}).returncode,2,label)
+ def test_persisted_output_symlink_cannot_escape(self):
+  f=self.session_output(self.session)
+  secret=self.outer/'fakehome/.ssh/id_rsa'; secret.parent.mkdir(parents=True,exist_ok=True); secret.write_text('KEY')
+  link=f.parent/'escape.txt'; link.symlink_to(secret)
+  self.assertEqual(self.hook('tester','Read',{'file_path':str(link)}).returncode,2)
  def test_signoz_allowlist_and_mutations(self):
   read='mcp__signoz__signoz_search_logs'; write='mcp__signoz__signoz_create_alert'; self.assertEqual(self.hook('tester',read,{}).returncode,2)
   self.conf['signoz_read_tools']=[read,write]; self.saveconf(); self.assertEqual(self.hook('tester',read,{}).returncode,0); self.assertEqual(self.hook('tester',write,{}).returncode,2)
@@ -183,6 +210,13 @@ class WorkflowTests(Fixture):
   self.open(); self.env['CES_TEST_SECRET']='never-pass-this'; r=self.checked(name='env'); self.assertIn('"APP_ENV":"testing"',r['output']); self.assertIn('"SECRET":false',r['output'])
  def test_dual_pipe_output_no_deadlock(self):
   r=self.decode(self.php("CES\\output(CES\\process([PHP_BINARY,'scripts/claude/tests/fixtures/check.php','noisy'],'',10,1000000));")); self.assertEqual(r['exit_code'],0); self.assertGreater(len(r['stderr']),200000)
+ def test_large_output_is_fully_drained_not_truncated(self):
+  """A single bounded read after child exit could silently truncate a large response."""
+  r=self.decode(self.php("CES\\output(CES\\process([PHP_BINARY,'scripts/claude/tests/fixtures/check.php','noisy'],'',20,8000000));"))
+  self.assertEqual(r['exit_code'],0); self.assertFalse(r['truncated'])
+  self.assertEqual(len(r['stderr']),300000)
+  # the fixture writes 3000x100 bytes per pipe, then a trailing line on stdout only
+  self.assertEqual(len(r['stdout']),300038); self.assertIn('assertion executed',r['stdout'][-60:])
  def test_output_bound(self):
   r=self.decode(self.php("CES\\output(CES\\process([PHP_BINARY,'scripts/claude/tests/fixtures/check.php','noisy'],'',10,1000));")); self.assertTrue(r['truncated']); self.assertNotEqual(r['exit_code'],0)
  def test_blocking_finding_cannot_pass(self):

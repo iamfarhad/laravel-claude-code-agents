@@ -34,7 +34,8 @@ try {
     }
     if (in_array($tool,['Read','Grep','Glob'],true)) {
         $path=$args['file_path'] ?? $args['path'] ?? CES\root();
-        CES\authorizeRead((string)$path); exit(0);
+        $transcript=is_string($input['transcript_path'] ?? null)?$input['transcript_path']:null;
+        CES\authorizeRead((string)$path,$session,$transcript); exit(0);
     }
     if ($tool==='Agent') {
         if ($role!=='engineering-orchestrator' || !in_array($args['subagent_type'] ?? '',array_diff(CES\ROLES,['engineering-orchestrator']),true)) throw new RuntimeException('Only the main orchestrator may delegate to a listed CES specialist.');

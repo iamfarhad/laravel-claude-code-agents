@@ -1,5 +1,23 @@
 # Changelog
 
+## 3.2.2 - harness interop: reading back persisted tool output (2026-09-09)
+- Fixed the read guard denying Claude Code's own persisted tool output. When a broker result
+  is too large for the transcript, the CLI writes it to
+  `~/.claude/projects/<slug>/<session>/tool-results/<id>.txt` and reads it back; `authorizeRead()`
+  routed every read through `safePath()`, so that read failed with "Path is outside the project"
+  and any flow with a large `fetch_mr` result dead-ended. Reads are now permitted for exactly
+  `<projects>/<slug>/<THIS session id>/tool-results/`, matched on the RESOLVED real path so a
+  planted symlink cannot escape it. Another session's directory, other projects' transcripts,
+  `$HOME` secrets and the rest of the host stay denied, and the denial message now says what is
+  actually allowed. Regression tests cover the positive case, three near-miss paths and the
+  symlink escape.
+- Hardened `process()` to drain both pipes to EOF after the child exits. It previously did one
+  bounded 64 KiB read per pipe, which cannot be guaranteed to empty a pipe whose buffer has been
+  enlarged - a large provider response could be silently truncated into invalid JSON and surface
+  as a confusing "Provider returned non-JSON or incomplete output". Not reproduced at default
+  pipe sizes; fixed as defence in depth, with a test asserting a 600 KB two-pipe response
+  arrives byte-complete.
+
 ## 3.2.1 - source restoration + symlinked-checkout fix (2026-09-09)
 - Fixed the PreToolUse guard's repository-root check, which compared the raw session `cwd`
   against a `__DIR__`-derived root. Because PHP always resolves `__DIR__` through symlinks, any
