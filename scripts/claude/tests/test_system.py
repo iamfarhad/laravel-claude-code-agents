@@ -290,6 +290,31 @@ class WorkflowTests(Fixture):
   self.ready(); d=self.repo/'database/migrations'; d.mkdir(parents=True); (d/'test.php').write_text('<?php // fixture')
   self.implemented(); self.decode(self.report('peer-reviewer','PASS')); c=self.checked(); self.decode(self.submit_test_report(c['id']))
   r=self.php("CES\\output(CES\\finalizeTask('test-session')); "); self.assertEqual(r.returncode,2); self.assertIn('database-reviewer',r.stdout)
+ def test_risk_patterns_cover_package_based_layout(self):
+  """Stock-Laravel path anchors miss packages/<Vendor>/<Package>/src/ layouts entirely."""
+  self.open()
+  for path,expected in [
+    ('packages/Vendor/RestApi/src/Http/Controllers/V1/Shop/Nested/CheckoutController.php','security-reviewer'),
+    ('packages/Vendor/Storefront/src/Http/Middleware/Theme.php','security-reviewer'),
+    ('app/Builders/DeliveryAddressBuilder.php','security-reviewer'),
+    ('packages/Vendor/Sales/src/Database/Migrations/2026_add_col.php','database-reviewer'),
+    ('packages/Vendor/Sales/src/Repositories/OrderRepository.php','database-reviewer'),
+    ('packages/Vendor/Queueing/src/Jobs/DispatchBatch.php','performance-reviewer'),
+    ('packages/Vendor/Core/src/Providers/CoreServiceProvider.php','tech-lead-reviewer'),
+   ]:
+   with self.subTest(path=path):
+    f=self.repo/path; f.parent.mkdir(parents=True,exist_ok=True); f.write_text('<?php // fixture')
+    gates=self.decode(self.php("CES\\output(['g'=>CES\\derivedRiskGates(CES\\loadTask('test-session'))]);"))['g']
+    f.unlink()
+    self.assertIn(expected,gates,path)
+ def test_generic_package_code_adds_no_risk_gate(self):
+  self.open()
+  for path in ['packages/Vendor/Storefront/src/Http/Controllers/HomeController.php','app/Support/StringHelper.php']:
+   with self.subTest(path=path):
+    f=self.repo/path; f.parent.mkdir(parents=True,exist_ok=True); f.write_text('<?php // fixture')
+    gates=self.decode(self.php("CES\\output(['g'=>CES\\derivedRiskGates(CES\\loadTask('test-session'))]);"))['g']
+    f.unlink()
+    self.assertEqual(gates,[],path)
  def test_untracked_governance_not_application_risk(self):
   self.open(); f=self.repo/'.claude/rules/custom-security.md'; f.write_text('Custom policy'); r=self.decode(self.php("CES\\output(['gates'=>CES\\derivedRiskGates(CES\\loadTask('test-session'))]);")); self.assertEqual(r['gates'],[])
 
@@ -422,6 +447,26 @@ class InstallerTests(unittest.TestCase):
   self.assertEqual(self.install('--apply').returncode,0); self.assertEqual((self.target/'.gitignore').read_text(),self.orig['.gitignore']); r=self.install('--apply','--add-gitignore'); self.assertEqual(r.returncode,0,r.stderr); text=(self.target/'.gitignore').read_text(); self.assertIn('vendor/\n',text); self.assertEqual(text.count('.claude/engineering-system/runtime/'),1); self.assertEqual(text.count('.claude/engineering-system/backups/'),1); self.assertEqual(text.count('.claude/engineering-system/installed-files.json'),1)
  def test_gitignore_opt_in_is_idempotent(self):
   self.assertEqual(self.install('--apply','--add-gitignore').returncode,0); before=(self.target/'.gitignore').read_text(); self.assertEqual(self.install('--apply','--add-gitignore').returncode,0); self.assertEqual((self.target/'.gitignore').read_text(),before)
+ def test_git_exclude_opt_in_keeps_tracked_tree_clean(self):
+  """.gitignore is tracked; appending to it dirties the tree and blocks commit-bound MR review."""
+  r=self.install('--apply','--add-git-exclude'); self.assertEqual(r.returncode,0,r.stderr)
+  self.assertEqual((self.target/'.gitignore').read_text(),self.orig['.gitignore'])
+  text=(self.target/'.git/info/exclude').read_text()
+  for pattern in ['.claude/engineering-system/runtime/','.claude/engineering-system/backups/','.claude/engineering-system/installed-files.json']:
+   self.assertEqual(text.count(pattern),1,pattern)
+ def test_git_exclude_preserves_existing_local_patterns_and_is_idempotent(self):
+  info=self.target/'.git/info'; info.mkdir(parents=True); (info/'exclude').write_text('# local\nmy-scratch/\n')
+  self.assertEqual(self.install('--apply','--add-git-exclude').returncode,0)
+  first=(info/'exclude').read_text(); self.assertIn('my-scratch/',first); self.assertIn('.claude/engineering-system/runtime/',first)
+  self.assertEqual(self.install('--apply','--add-git-exclude').returncode,0)
+  self.assertEqual((info/'exclude').read_text(),first)
+ def test_gitignore_and_git_exclude_are_mutually_exclusive(self):
+  before=self.snapshot(); r=self.install('--apply','--add-gitignore','--add-git-exclude')
+  self.assertEqual(r.returncode,2); self.assertEqual(before,self.snapshot())
+ def test_git_exclude_rejected_in_linked_worktree_without_writes(self):
+  (self.target/'.git').rmdir(); (self.target/'.git').write_text('gitdir: /dummy/test-only\n')
+  before=self.snapshot(); r=self.install('--apply','--add-git-exclude')
+  self.assertEqual(r.returncode,2); self.assertEqual(before,self.snapshot())
  def test_legacy_publisher_autoallow_removed_only_explicit_migration(self):
   self.setsettings({'permissions':{'allow':['Bash(php scripts/claude/mr/publish-review.php *)','Read']}}); r=self.install('--apply','--replace-existing'); self.assertEqual(r.returncode,0,r.stderr); self.assertEqual(json.loads((self.target/'.claude/settings.json').read_text())['permissions']['allow'],['Read'])
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.2.5 - non-dirtying install option + package-layout risk patterns (2026-09-09)
+- Added installer `--add-git-exclude`, which writes the CES runtime exclusions to `.git/info/exclude`
+  instead of `.gitignore`. The existing `--add-gitignore` appends to a TRACKED file, which leaves the
+  working tree dirty - and commit-bound MR review requires a clean tracked tree, so the documented
+  convenience flag permanently blocked the package's main use case on the checkout it was run in.
+  `.git/info/exclude` is local and never tracked. The two flags are mutually exclusive, and
+  `--add-git-exclude` refuses a linked worktree rather than writing outside the project root.
+  Both paths now share one append helper that preserves existing entries and is idempotent.
+- Extended `risk_patterns` to Bagisto/Webkul `packages/<Vendor>/<Package>/src/` layouts. The shipped
+  patterns anchored on stock Laravel paths (`app/Http/Middleware/`, `app/Policies/`, `config/auth.php`),
+  so on a package-based project every changed file matched nothing and no specialist gate was ever
+  derived - silently, since an unmatched path is indistinguishable from a low-risk one. Now covers
+  package `Http/Middleware`, `Http/Requests`, `Policies`, security-relevant `Http/Controllers`,
+  `Database/Migrations|Seeders|Factories`, `Models`, `Repositories`, `Jobs`, `Console/Commands`,
+  `Providers` and `Contracts`, plus `Address` and `Customer` in the security token list.
+  Deliberately selective: a generic package controller still derives no gate.
+
 ## 3.2.4 - MR tasks can scope their own diff (2026-09-09)
 - `task_open` now accepts an optional `base_sha` that sets the task's diff scope, validated as a
   full hash of a commit actually present in the checkout and covered by immutable task scope.

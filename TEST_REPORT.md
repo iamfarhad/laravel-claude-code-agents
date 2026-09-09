@@ -1,6 +1,6 @@
-# Test report - v3.2.4
+# Test report - v3.2.5
 
-Date: 2026-09-09. Result: **PASS, 113 named tests, 0 failures, 0 errors.**
+Date: 2026-09-09. Result: **PASS, 119 named tests, 0 failures, 0 errors.**
 
 v3.2.1 re-ran the suite on macOS (Darwin 25.6, PHP 8.5.10) in addition to Linux. That second platform
 exposed a real defect: the PreToolUse guard compared the raw session `cwd` against a `__DIR__`-derived
@@ -11,9 +11,9 @@ self-check (20 agent frontmatters, hook fragment, 21 PHP files) and by the insta
 Coverage groups:
 - GuardTests: 20
 - PrdTests: 12
-- WorkflowTests: 38
+- WorkflowTests: 40
 - PublisherTests: 24
-- InstallerTests: 19
+- InstallerTests: 23
 
 Reproduce locally:
 ```bash

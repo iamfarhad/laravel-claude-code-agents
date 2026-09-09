@@ -51,6 +51,15 @@ function mergeSettings(stdClass $current,stdClass $fragment,bool $setAgent,bool 
     if ($forceAgent || ($setAgent && !isset($current->agent))) $current->agent='engineering-orchestrator';
     return $current;
 }
+/** Append only the missing CES exclusion patterns, preserving existing content and order. */
+function withManagedExclusions(string $current,array $managed,string $label): string {
+    $lines=preg_split('/\R/',$current);
+    if ($lines===false) throw new RuntimeException('Could not parse '.$label.'.');
+    $normalized=array_map('trim',$lines); $next=rtrim($current,"\r\n");
+    foreach ($managed as $pattern) if (!in_array($pattern,$normalized,true)) $next.=($next===''?'':"\n").$pattern;
+    if ($next!=='' && !str_ends_with($next,"\n")) $next.="\n";
+    return $next;
+}
 function writeInstall(string $target,string $relative,string $content,int $mode=0644): void {
     $path=CES\safePath($relative,false,$target);
     if (is_file($path) && (($stat=stat($path))===false || $stat['nlink']>1)) throw new RuntimeException('Refusing a multiply-linked target: '.$relative);
@@ -70,12 +79,13 @@ try {
             foreach (explode('.',$host) as $label) if ($label==='' || strlen($label)>63 || !preg_match('/\A[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\z/',$label)) throw new RuntimeException('Invalid --allow-host value; use only an exact hostname such as git.example.com.');
             $allowHosts[]=$host; continue;
         }
-        if (!in_array($option,['--apply','--replace-existing','--set-default-agent','--force-default-agent','--add-gitignore'],true)) throw new RuntimeException('Supported options: --apply --replace-existing --set-default-agent --force-default-agent --add-gitignore --allow-host=HOST');
+        if (!in_array($option,['--apply','--replace-existing','--set-default-agent','--force-default-agent','--add-gitignore','--add-git-exclude'],true)) throw new RuntimeException('Supported options: --apply --replace-existing --set-default-agent --force-default-agent --add-gitignore --add-git-exclude --allow-host=HOST');
         $flags[]=$option;
     }
     $allowHosts=array_values(array_unique($allowHosts)); sort($allowHosts,SORT_STRING);
     $apply=in_array('--apply',$flags,true); $replace=in_array('--replace-existing',$flags,true);
-    $set=in_array('--set-default-agent',$flags,true); $force=in_array('--force-default-agent',$flags,true); $addGitignore=in_array('--add-gitignore',$flags,true);
+    $set=in_array('--set-default-agent',$flags,true); $force=in_array('--force-default-agent',$flags,true); $addGitignore=in_array('--add-gitignore',$flags,true); $addGitExclude=in_array('--add-git-exclude',$flags,true);
+    if ($addGitignore && $addGitExclude) throw new RuntimeException('--add-gitignore and --add-git-exclude are alternatives; choose one. Use --add-gitignore for a team-shared installation, or --add-git-exclude to keep the tracked tree clean, which commit-bound MR review requires.');
     if ($force && !$set) throw new RuntimeException('--force-default-agent also requires --set-default-agent.');
     $source=__DIR__; $target=realpath(getcwd());
     if ($target===false || CES\within($target,$source) || CES\within($source,$target)) throw new RuntimeException('Extract the package outside the project and run this installer from the target repository root.');
@@ -146,15 +156,23 @@ try {
     }
     if ($conflicts) throw new RuntimeException("Conflicting/customized files; nothing written. Inspect them, then explicitly use --replace-existing to back up and replace:\n".implode("\n",$conflicts));
     if (!is_file($settingsPath) || file_get_contents($settingsPath)!==$merged) $changes['.claude/settings.json']=$merged;
+    $managed=['.claude/engineering-system/runtime/','.claude/engineering-system/backups/','.claude/engineering-system/installed-files.json'];
     if ($addGitignore) {
         $gitignorePath=CES\safePath('.gitignore',false,$target);
         $currentGitignore=is_file($gitignorePath)?(string)file_get_contents($gitignorePath):'';
-        $managed=['.claude/engineering-system/runtime/','.claude/engineering-system/backups/','.claude/engineering-system/installed-files.json'];
-        $lines=preg_split('/\R/',$currentGitignore); if ($lines===false) throw new RuntimeException('Could not parse .gitignore.');
-        $normalized=array_map('trim',$lines); $next=rtrim($currentGitignore,"\r\n");
-        foreach ($managed as $pattern) if (!in_array($pattern,$normalized,true)) $next.=($next===''?'':"\n").$pattern;
-        if ($next!=='' && !str_ends_with($next,"\n")) $next.="\n";
+        $next=withManagedExclusions($currentGitignore,$managed,'.gitignore');
         if ($next!==$currentGitignore) { $changes['.gitignore']=$next; $actions[]=(is_file($gitignorePath)?'BACKUP + UPDATE ':'CREATE ').'.gitignore (explicit --add-gitignore)'; }
+    }
+    // .gitignore is TRACKED, so appending to it dirties the working tree - and commit-bound MR
+    // review requires a clean tracked tree. .git/info/exclude is local and never tracked, so it
+    // gives the same exclusions without blocking a review of the checkout it lives in.
+    if ($addGitExclude) {
+        if (!is_dir($target.'/.git')) throw new RuntimeException('--add-git-exclude needs a normal .git directory. This checkout uses a linked worktree, so add the CES runtime exclusions to that worktree\'s own info/exclude by hand.');
+        $excludeRel='.git/info/exclude';
+        $excludePath=CES\safePath($excludeRel,false,$target);
+        $currentExclude=is_file($excludePath)?(string)file_get_contents($excludePath):'';
+        $next=withManagedExclusions($currentExclude,$managed,$excludeRel);
+        if ($next!==$currentExclude) { $changes[$excludeRel]=$next; $actions[]=(is_file($excludePath)?'BACKUP + UPDATE ':'CREATE ').$excludeRel.' (explicit --add-git-exclude; leaves the tracked tree clean)'; }
     }
     $state=json_encode(['version'=>CES\VERSION,'files'=>(object)$newOwned],JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR)."\n";
     if (!is_file($statePath) || file_get_contents($statePath)!==$state) $changes['.claude/engineering-system/installed-files.json']=$state;

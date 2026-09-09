@@ -28,6 +28,8 @@ This is an explicit human trust decision. Wildcards, schemes, paths and ports ar
 
 If you want the installer to append only the CES runtime exclusions to the existing `.gitignore`, add `--add-gitignore`. It preserves existing entries and backs up the file before changing it.
 
+`.gitignore` is a TRACKED file, so appending to it leaves the working tree dirty - and commit-bound MR review requires a clean tracked tree. If this checkout is used to review MRs, or CES is strictly personal, use `--add-git-exclude` instead: it writes the same exclusions to `.git/info/exclude`, which is local and never tracked, so it cannot block a review of the checkout it lives in. The two flags are alternatives and cannot be combined. `--add-git-exclude` needs a normal `.git` directory; in a linked worktree, add the lines to that worktree's own `info/exclude` by hand.
+
 ## Upgrade from the earlier ZIP
 Start with a dry run. Existing unowned/customized package paths may conflict. Inspect the conflicts, then intentionally migrate:
 ```bash

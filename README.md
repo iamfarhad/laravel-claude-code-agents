@@ -2,7 +2,7 @@
 
 A production-oriented **Claude Code engineering operating system** for Laravel/backend teams: gated product requirements, specialized engineering agents, independent review roles, exact-MR publication, test evidence, incident flows, and optional SigNoz observability.
 
-**Current version: 3.2.4**
+**Current version: 3.2.5**
 
 > This repository is the source of truth. The installer is designed to layer onto an existing project without replacing that project's `CLAUDE.md` or `README.md`.
 
@@ -118,6 +118,10 @@ Local CES state should normally be ignored:
 
 `--add-gitignore` adds only those entries and preserves the existing project `.gitignore`.
 
+For a checkout you review MRs from, prefer `--add-git-exclude`. It writes the same three patterns to
+`.git/info/exclude`, which is never tracked - appending to the tracked `.gitignore` dirties the working
+tree, and a commit-bound MR review requires a clean one.
+
 ## Verification
 
 Offline regression suite:
@@ -128,7 +132,7 @@ python3 tools/package_integrity.py --check
 php scripts/claude/checks/self-check.php
 ```
 
-v3.2 is verified by **113 regression tests** across guards, PRD validation, workflow gates, MR publishing and installer behavior. See [TEST_REPORT.md](TEST_REPORT.md) for the scope and limitations.
+v3.2 is verified by **119 regression tests** across guards, PRD validation, workflow gates, MR publishing and installer behavior. See [TEST_REPORT.md](TEST_REPORT.md) for the scope and limitations.
 
 GitHub Actions runs lint, integrity verification, regression tests and self-check on pushes and pull requests.
 
