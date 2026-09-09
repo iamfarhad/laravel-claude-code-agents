@@ -23,7 +23,7 @@ function authorizeAction(string $role,array $request,string $session): void {
     ];
     if (!in_array($role,$permissions[$action] ?? [],true)) throw new \RuntimeException('Action not allowed for this role.');
     $keys=match($action) {
-        'task_open'=>['action','task_id','workflow','prd_path','mr_url','reviewed_head_sha','risk_gates'],
+        'task_open'=>['action','task_id','workflow','prd_path','mr_url','reviewed_head_sha','risk_gates','base_sha'],
         'context'=>['action','kind','base_sha'],
         'fetch_mr'=>['action','mr_url'],
         'run_check'=>['action','name'],

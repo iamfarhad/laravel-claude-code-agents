@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.2.4 - MR tasks can scope their own diff (2026-09-09)
+- `task_open` now accepts an optional `base_sha` that sets the task's diff scope, validated as a
+  full hash of a commit actually present in the checkout and covered by immutable task scope.
+- This fixes a real dead end on MR reviews. `base_sha` was always the local HEAD, but an MR review
+  checkout sits AT the reviewed head, so `base_sha == reviewed_head_sha`: `context kind=diff`
+  returned nothing and `derivedRiskGates()` had no changed files to classify, silently deriving
+  zero specialist gates. A reviewer could conclude "no diff" from what was actually an
+  unscoped task. Passing the merge-base with the target branch - `fetch_mr` returns it as
+  `metadata.base_sha` - makes the canonical diff reachable.
+- Because `task_status` is available to every role, the task's `base_sha` is also how a specialist
+  that is not granted `fetch_mr` (security, database, performance, release reviewers) now obtains a
+  usable diff scope. `fetch_mr` stays restricted to orchestrator/peer/TL/EM: the local checkout at
+  the reviewed head is the authoritative copy of the code, so the fix is to give every role the
+  scope rather than to widen provider network access.
+- Instructed the orchestrator to always pass `base_sha` on MR tasks and to refuse to open a task
+  that cannot see its own diff, and gave all seven reviewing roles an explicit Diff scope section:
+  read `base_sha` from `task_status`, pass it to `context kind=diff`, and when it equals
+  `reviewed_head_sha` report the coverage limitation instead of guessing which lines are new.
+
 ## 3.2.3 - bounded fetch_mr result (2026-09-09)
 - `fetch_mr` no longer returns the raw provider object or any diff body. It previously returned
   the entire MR/PR payload - description, repeated actor blobs, pipeline objects, avatar URLs -

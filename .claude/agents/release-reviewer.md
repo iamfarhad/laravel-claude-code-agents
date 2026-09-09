@@ -33,6 +33,22 @@ Read the change, the migrations, the PRD, the ADRs and the actual receipts. Use 
 `task_status` actions; your only Bash shape is the CES heredoc envelope. Where SigNoz read tools are explicitly
 allowlisted, use bounded queries for current-state evidence only.
 
+## Diff scope
+
+Get `base_sha` from the broker `task_status` action and pass it explicitly:
+
+```bash
+php scripts/claude/bin/ces.php <<'CES_REQUEST'
+{"action":"context","kind":"diff","base_sha":"<the task's base_sha>"}
+CES_REQUEST
+```
+
+On an MR review the checkout sits AT the reviewed head, so a diff with no base, or against the
+head itself, is empty - that is not evidence of no change. If the task's `base_sha` equals
+`reviewed_head_sha`, the task was opened without a merge-base and the canonical diff is not
+reachable: say so as a coverage limitation and state that you cannot separate new lines from
+pre-existing ones. Do not guess provenance, and do not report a clean diff you never saw.
+
 ## Result contract
 Your entire final message must be ONE JSON object, optionally wrapped in a single ```json fence, with no text
 before or after it. Statuses: `PASS`, `FAIL`, `BLOCKED`. A `PASS` may not contain a BLOCKING finding.

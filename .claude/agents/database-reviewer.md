@@ -37,6 +37,22 @@ repository state; your only Bash shape is the CES heredoc envelope. Follow
 `.claude/rules/engineering-system/database-safety.md` and `data-integrity.md`. If the engine, version or table
 size is not established by something you read, treat it as an `unknown` and say which conclusion depends on it.
 
+## Diff scope
+
+Get `base_sha` from the broker `task_status` action and pass it explicitly:
+
+```bash
+php scripts/claude/bin/ces.php <<'CES_REQUEST'
+{"action":"context","kind":"diff","base_sha":"<the task's base_sha>"}
+CES_REQUEST
+```
+
+On an MR review the checkout sits AT the reviewed head, so a diff with no base, or against the
+head itself, is empty - that is not evidence of no change. If the task's `base_sha` equals
+`reviewed_head_sha`, the task was opened without a merge-base and the canonical diff is not
+reachable: say so as a coverage limitation and state that you cannot separate new lines from
+pre-existing ones. Do not guess provenance, and do not report a clean diff you never saw.
+
 ## Result contract
 Your entire final message must be ONE JSON object, optionally wrapped in a single ```json fence, with no text
 before or after it. Statuses: `PASS`, `FAIL`, `BLOCKED`. A `PASS` may not contain a BLOCKING finding.

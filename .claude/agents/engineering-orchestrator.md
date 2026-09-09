@@ -35,6 +35,12 @@ See docs/ai/claude-engineering-system/COMMANDS.md for each request schema. Unkno
    stop and report the exact `--allow-host=` remediation. Never spawn a specialist to diagnose configuration.
 3. `task_open` with `task_id`, `workflow`, `prd_path` for code-changing flows, plus `mr_url` + `reviewed_head_sha`
    when reviewing an existing MR, plus the `risk_gates` you determined from real impact analysis.
+   **On an MR task, always pass `base_sha`** - the merge-base with the target branch, returned by
+   `fetch_mr` as `metadata.base_sha`. The checkout is at the reviewed head, so without it the task's
+   base equals that head, `context kind=diff` returns nothing, and no risk gate can be derived from
+   the change. Task scope is immutable, so getting this wrong at intake cannot be corrected later -
+   it needs a new task. If the merge-base is not present locally, `task_open` refuses; have the
+   target branch fetched rather than opening a task that cannot see its own diff.
 4. Only after `task_open` succeeds may you delegate. One task per session; scope is immutable.
 
 ## Risk gates

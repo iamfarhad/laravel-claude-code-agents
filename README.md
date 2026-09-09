@@ -2,7 +2,7 @@
 
 A production-oriented **Claude Code engineering operating system** for Laravel/backend teams: gated product requirements, specialized engineering agents, independent review roles, exact-MR publication, test evidence, incident flows, and optional SigNoz observability.
 
-**Current version: 3.2.3**
+**Current version: 3.2.4**
 
 > This repository is the source of truth. The installer is designed to layer onto an existing project without replacing that project's `CLAUDE.md` or `README.md`.
 
@@ -128,7 +128,7 @@ python3 tools/package_integrity.py --check
 php scripts/claude/checks/self-check.php
 ```
 
-v3.2 is verified by **110 regression tests** across guards, PRD validation, workflow gates, MR publishing and installer behavior. See [TEST_REPORT.md](TEST_REPORT.md) for the scope and limitations.
+v3.2 is verified by **113 regression tests** across guards, PRD validation, workflow gates, MR publishing and installer behavior. See [TEST_REPORT.md](TEST_REPORT.md) for the scope and limitations.
 
 GitHub Actions runs lint, integrity verification, regression tests and self-check on pushes and pull requests.
 

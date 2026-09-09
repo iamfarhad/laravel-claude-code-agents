@@ -12,7 +12,10 @@ a different task needs a new session, and a changed scope needs a new task. Use 
 2. For an existing MR/PR, the **main orchestrator** performs host/config preflight and `fetch_mr` itself, before
    any delegation. A non-allowlisted host is a configuration block reported with exact remediation - never a task
    to delegate to a specialist.
-3. Determine risk gates from real impact, then `task_open`.
+3. Determine risk gates from real impact, then `task_open`. On an MR task pass `base_sha` - the
+   merge-base with the target branch from `fetch_mr`. The checkout is at the reviewed head, so the
+   default base leaves the diff empty and derives no gates, and immutable scope means it cannot be
+   fixed without a new task.
 4. Delegate only after `task_open` succeeds.
 
 ## Read-only versus code-changing

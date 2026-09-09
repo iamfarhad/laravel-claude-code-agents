@@ -1,4 +1,4 @@
-# Package manifest - v3.2.3
+# Package manifest - v3.2.4
 
 106 regular source files; 20 agents; 14 workflow documents. No runtime sessions, API credentials, vendor packages or ZIP artifacts included.
 

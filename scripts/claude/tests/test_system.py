@@ -182,6 +182,30 @@ class WorkflowTests(Fixture):
    with self.subTest(flow=flow): self.assertEqual(self.php("CES\\output(CES\\openTask('different-'.$x['workflow'],$x));",{'task_id':'T-1','workflow':flow}).returncode,2)
  def test_review_flow_denies_implementation(self):
   self.open('peer-review'); self.assertEqual(self.hook('developer','Write',{'file_path':'app/A.php'}).returncode,2)
+ def test_mr_task_base_sha_restores_diff_scope_and_risk_gates(self):
+  """On an MR checkout the local HEAD IS the reviewed head, so the default base sees nothing."""
+  d=self.repo/'database/migrations'; d.mkdir(parents=True); (d/'2026_add_index.php').write_text('<?php // migration')
+  self.git('add','-A'); self.git('commit','-qm','add migration')
+  head=self.git('rev-parse','HEAD').stdout.strip()
+  req={'task_id':'T-1','workflow':'peer-review','mr_url':'https://github.test/org/repo/pull/7','reviewed_head_sha':head}
+  default=self.decode(self.php("CES\\output(CES\\openTask('sess-default',$x));",req))
+  self.assertEqual(default['base_sha'],head)
+  self.assertEqual(self.decode(self.php("CES\\output(['g'=>CES\\derivedRiskGates(CES\\loadTask('sess-default'))]);"))['g'],[])
+  scoped=self.decode(self.php("CES\\output(CES\\openTask('sess-base',$x));",{**req,'base_sha':self.sha}))
+  self.assertEqual(scoped['base_sha'],self.sha)
+  self.assertIn('database-reviewer',self.decode(self.php("CES\\output(['g'=>CES\\derivedRiskGates(CES\\loadTask('sess-base'))]);"))['g'])
+ def test_base_sha_is_accepted_by_the_broker_and_visible_to_every_role(self):
+  h=self.hook('engineering-orchestrator','Bash',{'command':self.command({'action':'task_open','task_id':'T-1','workflow':'peer-review','mr_url':'https://github.test/org/repo/pull/7','reviewed_head_sha':self.sha,'base_sha':self.sha})})
+  self.assertEqual(h.returncode,0,h.stderr)
+  self.open('peer-review',mr_url='https://github.test/org/repo/pull/7',reviewed_head_sha=self.sha,base_sha=self.sha)
+  # task_status is permitted to ALL roles, so a specialist without fetch_mr can still scope its diff.
+  for role in ['database-reviewer','security-reviewer','performance-reviewer']:
+   with self.subTest(role=role):
+    self.assertEqual(self.decode(self.broker(role,{'action':'task_status'}))['task']['base_sha'],self.sha)
+ def test_unusable_base_sha_rejected(self):
+  for bad in ['b'*40,'not-a-sha','']:
+   with self.subTest(base=bad):
+    self.assertEqual(self.php("CES\\output(CES\\openTask('sess-bad',$x));",{'task_id':'T-1','workflow':'peer-review','base_sha':bad}).returncode,2)
  def test_task_scope_is_immutable(self):
   self.open(); self.assertEqual(self.php("CES\\output(CES\\openTask('test-session',$x));",{'task_id':'T-1','workflow':'feature','prd_path':'docs/prd/Other.md'}).returncode,2)
  def test_implicit_specialists_and_idempotent_task(self):

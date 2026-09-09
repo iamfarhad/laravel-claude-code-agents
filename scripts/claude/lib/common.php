@@ -3,7 +3,7 @@
 declare(strict_types=1);
 namespace CES;
 
-const VERSION = '3.2.3';
+const VERSION = '3.2.4';
 const ROLES = ['engineering-orchestrator','product-manager','prd-reviewer','architect','qa-support','developer','hotfix-developer','upgrade-developer','peer-reviewer','mr-review-publisher','tech-lead-reviewer','engineering-manager-reviewer','security-reviewer','performance-reviewer','database-reviewer','tester','regression-tester','incident-investigator','rca-analyzer','release-reviewer'];
 const DEVELOPERS = ['developer','hotfix-developer','upgrade-developer'];
 const TESTERS = ['tester','regression-tester'];
