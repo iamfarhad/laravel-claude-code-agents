@@ -1,0 +1,72 @@
+[
+  {
+    "name": "publisher_shell_suffix",
+    "expected_exit": 2,
+    "actual_exit": 2,
+    "v2_vulnerable": false,
+    "stdout": "",
+    "stderr": "MR publisher may only execute the approved publish-review.php adapter. Attempted command: php scripts/claude/mr/publish-review.php; echo pwned\n"
+  },
+  {
+    "name": "publisher_space_shell_suffix",
+    "expected_exit": 2,
+    "actual_exit": 0,
+    "v2_vulnerable": true,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "name": "readonly_interpreter_write",
+    "expected_exit": 2,
+    "actual_exit": 0,
+    "v2_vulnerable": true,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "name": "readonly_git_option_bypass",
+    "expected_exit": 2,
+    "actual_exit": 0,
+    "v2_vulnerable": true,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "name": "developer_rules_write",
+    "expected_exit": 2,
+    "actual_exit": 0,
+    "v2_vulnerable": true,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "name": "developer_guard_write",
+    "expected_exit": 2,
+    "actual_exit": 0,
+    "v2_vulnerable": true,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "name": "developer_external_write",
+    "expected_exit": 2,
+    "actual_exit": 0,
+    "v2_vulnerable": true,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "name": "draft_empty_prd_accepted",
+    "expected_exit": 2,
+    "actual_exit": 0,
+    "v2_vulnerable": true,
+    "stdout": "{\n    \"status\": \"PASS\",\n    \"path\": \"/tmp/tmpkx9nb3ec/fake.md\",\n    \"ac_ids\": [\n        \"AC-01\"\n    ],\n    \"errors\": [],\n    \"warnings\": []\n}\n"
+  },
+  {
+    "name": "installer_mutates_before_preflight",
+    "expected_no_files_written": true,
+    "files_written_before_failure": true,
+    "v2_vulnerable": true,
+    "actual_exit": 2
+  }
+]

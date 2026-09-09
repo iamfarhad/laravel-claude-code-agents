@@ -1,0 +1,525 @@
+{
+  "status": "PASS",
+  "tests_run": 103,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "records": [
+    {
+      "test": "__main__.GuardTests.test_broker_rejects_direct_cli",
+      "status": "PASS",
+      "seconds": 0.132
+    },
+    {
+      "test": "__main__.GuardTests.test_configuration_change_invalidates_ticket",
+      "status": "PASS",
+      "seconds": 0.103
+    },
+    {
+      "test": "__main__.GuardTests.test_developer_delegation_requires_product_gate",
+      "status": "PASS",
+      "seconds": 0.115
+    },
+    {
+      "test": "__main__.GuardTests.test_disabled_checks_fail_closed",
+      "status": "PASS",
+      "seconds": 0.102
+    },
+    {
+      "test": "__main__.GuardTests.test_exact_envelope_preserves_fields_and_does_not_auto_allow",
+      "status": "PASS",
+      "seconds": 0.091
+    },
+    {
+      "test": "__main__.GuardTests.test_governance_and_outside_paths_denied",
+      "status": "PASS",
+      "seconds": 0.3
+    },
+    {
+      "test": "__main__.GuardTests.test_nested_agent_denied",
+      "status": "PASS",
+      "seconds": 0.094
+    },
+    {
+      "test": "__main__.GuardTests.test_pretask_specialist_delegation_denied_with_actionable_message",
+      "status": "PASS",
+      "seconds": 0.091
+    },
+    {
+      "test": "__main__.GuardTests.test_readonly_roles_cannot_write",
+      "status": "PASS",
+      "seconds": 0.136
+    },
+    {
+      "test": "__main__.GuardTests.test_role_spoof_and_unknown_action_rejected",
+      "status": "PASS",
+      "seconds": 0.121
+    },
+    {
+      "test": "__main__.GuardTests.test_scoped_document_and_developer_writes",
+      "status": "PASS",
+      "seconds": 0.222
+    },
+    {
+      "test": "__main__.GuardTests.test_secret_path_read_denied",
+      "status": "PASS",
+      "seconds": 0.152
+    },
+    {
+      "test": "__main__.GuardTests.test_shell_bypass_variants_denied",
+      "status": "PASS",
+      "seconds": 0.147
+    },
+    {
+      "test": "__main__.GuardTests.test_signoz_allowlist_and_mutations",
+      "status": "PASS",
+      "seconds": 0.126
+    },
+    {
+      "test": "__main__.GuardTests.test_symlink_and_hardlink_write_denied",
+      "status": "PASS",
+      "seconds": 0.185
+    },
+    {
+      "test": "__main__.GuardTests.test_ticket_replay_denied",
+      "status": "PASS",
+      "seconds": 0.14
+    },
+    {
+      "test": "__main__.GuardTests.test_unknown_role_untouched",
+      "status": "PASS",
+      "seconds": 0.089
+    },
+    {
+      "test": "__main__.InstallerTests.test_array_settings_rejected",
+      "status": "PASS",
+      "seconds": 0.013
+    },
+    {
+      "test": "__main__.InstallerTests.test_customized_managed_asset_requires_explicit_replace",
+      "status": "PASS",
+      "seconds": 0.076
+    },
+    {
+      "test": "__main__.InstallerTests.test_dry_run_writes_nothing",
+      "status": "PASS",
+      "seconds": 0.02
+    },
+    {
+      "test": "__main__.InstallerTests.test_explicit_allow_host_merges_existing_human_config",
+      "status": "PASS",
+      "seconds": 0.069
+    },
+    {
+      "test": "__main__.InstallerTests.test_explicit_allow_host_on_new_install",
+      "status": "PASS",
+      "seconds": 0.038
+    },
+    {
+      "test": "__main__.InstallerTests.test_force_default_agent_explicit",
+      "status": "PASS",
+      "seconds": 0.038
+    },
+    {
+      "test": "__main__.InstallerTests.test_git_worktree_file_supported",
+      "status": "PASS",
+      "seconds": 0.038
+    },
+    {
+      "test": "__main__.InstallerTests.test_gitignore_opt_in_is_idempotent",
+      "status": "PASS",
+      "seconds": 0.066
+    },
+    {
+      "test": "__main__.InstallerTests.test_gitignore_untouched_by_default_and_opt_in_append",
+      "status": "PASS",
+      "seconds": 0.06
+    },
+    {
+      "test": "__main__.InstallerTests.test_hardlinked_settings_preflight_no_mutation",
+      "status": "PASS",
+      "seconds": 0.019
+    },
+    {
+      "test": "__main__.InstallerTests.test_human_configuration_preserved_on_upgrade",
+      "status": "PASS",
+      "seconds": 0.056
+    },
+    {
+      "test": "__main__.InstallerTests.test_install_idempotent",
+      "status": "PASS",
+      "seconds": 0.064
+    },
+    {
+      "test": "__main__.InstallerTests.test_invalid_allow_host_rejected_without_writes",
+      "status": "PASS",
+      "seconds": 0.019
+    },
+    {
+      "test": "__main__.InstallerTests.test_invalid_settings_preflight_no_partial_install",
+      "status": "PASS",
+      "seconds": 0.015
+    },
+    {
+      "test": "__main__.InstallerTests.test_legacy_publisher_autoallow_removed_only_explicit_migration",
+      "status": "PASS",
+      "seconds": 0.041
+    },
+    {
+      "test": "__main__.InstallerTests.test_preserve_roots_unknown_settings_and_user_hooks",
+      "status": "PASS",
+      "seconds": 0.044
+    },
+    {
+      "test": "__main__.InstallerTests.test_replace_backups_customized_agent",
+      "status": "PASS",
+      "seconds": 0.041
+    },
+    {
+      "test": "__main__.InstallerTests.test_symlink_target_rejected",
+      "status": "PASS",
+      "seconds": 0.014
+    },
+    {
+      "test": "__main__.InstallerTests.test_unowned_conflict_blocks_before_any_writes",
+      "status": "PASS",
+      "seconds": 0.019
+    },
+    {
+      "test": "__main__.PrdTests.test_ac_fields_all_required",
+      "status": "PASS",
+      "seconds": 0.141
+    },
+    {
+      "test": "__main__.PrdTests.test_ac_outside_section_rejected",
+      "status": "PASS",
+      "seconds": 0.085
+    },
+    {
+      "test": "__main__.PrdTests.test_draft_with_readiness_word_rejected",
+      "status": "PASS",
+      "seconds": 0.094
+    },
+    {
+      "test": "__main__.PrdTests.test_duplicate_ac_rejected",
+      "status": "PASS",
+      "seconds": 0.089
+    },
+    {
+      "test": "__main__.PrdTests.test_duplicate_status_rejected",
+      "status": "PASS",
+      "seconds": 0.085
+    },
+    {
+      "test": "__main__.PrdTests.test_empty_sections_rejected",
+      "status": "PASS",
+      "seconds": 0.092
+    },
+    {
+      "test": "__main__.PrdTests.test_fenced_example_cannot_satisfy_readiness",
+      "status": "PASS",
+      "seconds": 0.094
+    },
+    {
+      "test": "__main__.PrdTests.test_orphan_fr_rejected",
+      "status": "PASS",
+      "seconds": 0.095
+    },
+    {
+      "test": "__main__.PrdTests.test_placeholders_rejected",
+      "status": "PASS",
+      "seconds": 0.092
+    },
+    {
+      "test": "__main__.PrdTests.test_unknown_fr_reference_rejected",
+      "status": "PASS",
+      "seconds": 0.092
+    },
+    {
+      "test": "__main__.PrdTests.test_unresolved_question_rejected",
+      "status": "PASS",
+      "seconds": 0.096
+    },
+    {
+      "test": "__main__.PrdTests.test_valid_prd",
+      "status": "PASS",
+      "seconds": 0.095
+    },
+    {
+      "test": "__main__.PublisherTests.test_auth_and_rate_errors_do_not_fallback",
+      "status": "PASS",
+      "seconds": 0.815
+    },
+    {
+      "test": "__main__.PublisherTests.test_closed_mr_no_writes",
+      "status": "PASS",
+      "seconds": 0.132
+    },
+    {
+      "test": "__main__.PublisherTests.test_dedup_read_failure_blocks_without_writes",
+      "status": "PASS",
+      "seconds": 0.175
+    },
+    {
+      "test": "__main__.PublisherTests.test_dry_run_has_zero_actual_writes",
+      "status": "PASS",
+      "seconds": 0.199
+    },
+    {
+      "test": "__main__.PublisherTests.test_exact_head_required_no_writes",
+      "status": "PASS",
+      "seconds": 0.123
+    },
+    {
+      "test": "__main__.PublisherTests.test_fallback_is_persistently_deduplicated",
+      "status": "PASS",
+      "seconds": 0.462
+    },
+    {
+      "test": "__main__.PublisherTests.test_foreign_actor_markers_do_not_suppress_our_review",
+      "status": "PASS",
+      "seconds": 0.604
+    },
+    {
+      "test": "__main__.PublisherTests.test_github_inline_and_summary",
+      "status": "PASS",
+      "seconds": 0.343
+    },
+    {
+      "test": "__main__.PublisherTests.test_gitlab_positions",
+      "status": "PASS",
+      "seconds": 0.349
+    },
+    {
+      "test": "__main__.PublisherTests.test_gitlab_version_mismatch",
+      "status": "PASS",
+      "seconds": 0.253
+    },
+    {
+      "test": "__main__.PublisherTests.test_head_changes_mid_publication",
+      "status": "PASS",
+      "seconds": 0.284
+    },
+    {
+      "test": "__main__.PublisherTests.test_invalid_lines_and_duplicate_ids",
+      "status": "PASS",
+      "seconds": 0.126
+    },
+    {
+      "test": "__main__.PublisherTests.test_invalid_publication_contracts",
+      "status": "PASS",
+      "seconds": 0.159
+    },
+    {
+      "test": "__main__.PublisherTests.test_local_lock_blocks_second_publisher",
+      "status": "PASS",
+      "seconds": 0.102
+    },
+    {
+      "test": "__main__.PublisherTests.test_missing_diff_flagged",
+      "status": "PASS",
+      "seconds": 0.153
+    },
+    {
+      "test": "__main__.PublisherTests.test_nits_console_only",
+      "status": "PASS",
+      "seconds": 0.262
+    },
+    {
+      "test": "__main__.PublisherTests.test_pagination_github",
+      "status": "PASS",
+      "seconds": 0.491
+    },
+    {
+      "test": "__main__.PublisherTests.test_pagination_gitlab",
+      "status": "PASS",
+      "seconds": 0.543
+    },
+    {
+      "test": "__main__.PublisherTests.test_rerun_deduplicates",
+      "status": "PASS",
+      "seconds": 0.434
+    },
+    {
+      "test": "__main__.PublisherTests.test_summary_failure_reports_partial",
+      "status": "PASS",
+      "seconds": 0.341
+    },
+    {
+      "test": "__main__.PublisherTests.test_summary_only_findings_preserved",
+      "status": "PASS",
+      "seconds": 0.285
+    },
+    {
+      "test": "__main__.WorkflowTests.test_attempt_budget_and_idempotent_receipt",
+      "status": "PASS",
+      "seconds": 0.279
+    },
+    {
+      "test": "__main__.WorkflowTests.test_blocked_report_does_not_consume_attempt",
+      "status": "PASS",
+      "seconds": 0.252
+    },
+    {
+      "test": "__main__.WorkflowTests.test_blocking_finding_cannot_pass",
+      "status": "PASS",
+      "seconds": 0.122
+    },
+    {
+      "test": "__main__.WorkflowTests.test_changed_prd_invalidates_gate",
+      "status": "PASS",
+      "seconds": 0.195
+    },
+    {
+      "test": "__main__.WorkflowTests.test_check_environment_not_inherited",
+      "status": "PASS",
+      "seconds": 0.19
+    },
+    {
+      "test": "__main__.WorkflowTests.test_check_failure_and_timeout_receipts",
+      "status": "PASS",
+      "seconds": 1.294
+    },
+    {
+      "test": "__main__.WorkflowTests.test_check_workspace_mutation_fails",
+      "status": "PASS",
+      "seconds": 0.215
+    },
+    {
+      "test": "__main__.WorkflowTests.test_claimed_pass_without_check_rejected",
+      "status": "PASS",
+      "seconds": 0.209
+    },
+    {
+      "test": "__main__.WorkflowTests.test_code_flows_require_prd",
+      "status": "PASS",
+      "seconds": 0.29
+    },
+    {
+      "test": "__main__.WorkflowTests.test_developer_test_receipt_cannot_replace_tester",
+      "status": "PASS",
+      "seconds": 0.277
+    },
+    {
+      "test": "__main__.WorkflowTests.test_dual_pipe_output_no_deadlock",
+      "status": "PASS",
+      "seconds": 0.159
+    },
+    {
+      "test": "__main__.WorkflowTests.test_duplicate_ac_result_rejected",
+      "status": "PASS",
+      "seconds": 0.264
+    },
+    {
+      "test": "__main__.WorkflowTests.test_end_to_end_feature_gate",
+      "status": "PASS",
+      "seconds": 0.358
+    },
+    {
+      "test": "__main__.WorkflowTests.test_existing_mr_publication_is_required_for_completion",
+      "status": "PASS",
+      "seconds": 0.53
+    },
+    {
+      "test": "__main__.WorkflowTests.test_final_gate_allows_pause_while_background_tasks_are_in_flight",
+      "status": "PASS",
+      "seconds": 0.122
+    },
+    {
+      "test": "__main__.WorkflowTests.test_implicit_specialists_and_idempotent_task",
+      "status": "PASS",
+      "seconds": 0.12
+    },
+    {
+      "test": "__main__.WorkflowTests.test_invalid_report_invalidates_prior_finalization",
+      "status": "PASS",
+      "seconds": 0.43
+    },
+    {
+      "test": "__main__.WorkflowTests.test_local_dirty_mr_checkout_rejected",
+      "status": "PASS",
+      "seconds": 0.142
+    },
+    {
+      "test": "__main__.WorkflowTests.test_local_wrong_head_rejected",
+      "status": "PASS",
+      "seconds": 0.143
+    },
+    {
+      "test": "__main__.WorkflowTests.test_missing_ac_result_rejected",
+      "status": "PASS",
+      "seconds": 0.185
+    },
+    {
+      "test": "__main__.WorkflowTests.test_missing_specialist_gate_blocks",
+      "status": "PASS",
+      "seconds": 0.361
+    },
+    {
+      "test": "__main__.WorkflowTests.test_no_task_blocks_check",
+      "status": "PASS",
+      "seconds": 0.111
+    },
+    {
+      "test": "__main__.WorkflowTests.test_output_bound",
+      "status": "PASS",
+      "seconds": 0.177
+    },
+    {
+      "test": "__main__.WorkflowTests.test_pm_alone_not_enough",
+      "status": "PASS",
+      "seconds": 0.154
+    },
+    {
+      "test": "__main__.WorkflowTests.test_publication_dry_run_does_not_satisfy_workflow",
+      "status": "PASS",
+      "seconds": 0.365
+    },
+    {
+      "test": "__main__.WorkflowTests.test_readonly_fail_delivers_review_not_acceptance",
+      "status": "PASS",
+      "seconds": 0.184
+    },
+    {
+      "test": "__main__.WorkflowTests.test_receipt_replay_does_not_consume_attempt",
+      "status": "PASS",
+      "seconds": 0.222
+    },
+    {
+      "test": "__main__.WorkflowTests.test_report_unknown_status_and_malformed_findings",
+      "status": "PASS",
+      "seconds": 0.118
+    },
+    {
+      "test": "__main__.WorkflowTests.test_review_flow_denies_implementation",
+      "status": "PASS",
+      "seconds": 0.113
+    },
+    {
+      "test": "__main__.WorkflowTests.test_stale_review_blocks_finalization",
+      "status": "PASS",
+      "seconds": 0.341
+    },
+    {
+      "test": "__main__.WorkflowTests.test_stale_test_receipt_rejected",
+      "status": "PASS",
+      "seconds": 0.251
+    },
+    {
+      "test": "__main__.WorkflowTests.test_stop_retry_is_bounded_and_invalid_gate_persists",
+      "status": "PASS",
+      "seconds": 0.161
+    },
+    {
+      "test": "__main__.WorkflowTests.test_task_scope_is_immutable",
+      "status": "PASS",
+      "seconds": 0.117
+    },
+    {
+      "test": "__main__.WorkflowTests.test_untracked_governance_not_application_risk",
+      "status": "PASS",
+      "seconds": 0.125
+    }
+  ],
+  "scope": "Offline PHP/fixture/installer and mocked gh/glab API tests. No live Claude Code, SigNoz or real MR endpoints."
+}

@@ -1,0 +1,19 @@
+{
+  "mr_url": "https://gitlab.example.com/group/project/-/merge_requests/123",
+  "reviewed_head_sha": "0000000000000000000000000000000000000000",
+  "review_status": "FAIL",
+  "review_summary": "EXAMPLE ONLY: replace with inspected findings.",
+  "comments": [
+    {
+      "id": "PEER-001",
+      "severity": "WARNING",
+      "path": "app/Example.php",
+      "line": null,
+      "side": "RIGHT",
+      "problem": "Replace with an evidenced problem.",
+      "impact": "Replace with actual impact.",
+      "evidence": "Replace with verified code/test evidence.",
+      "recommended_direction": "Replace with a focused recommendation."
+    }
+  ]
+}

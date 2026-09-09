@@ -1,0 +1,14 @@
+{
+  "version": "3.2.0",
+  "date": "2026-09-09",
+  "status": "PASS",
+  "tests_run": 103,
+  "failures": 0,
+  "errors": 0,
+  "focus": [
+    "Stop final gate defers terminal CES validation while Claude Code background_tasks is non-empty.",
+    "Main orchestrator may run independent read-only specialist reviews in parallel on one immutable task snapshot.",
+    "Existing v3.1 allowlist, installer safety, MR publication binding, PRD/AC evidence and broker controls remain regression-covered."
+  ],
+  "scope": "Offline PHP/fixture/installer and mocked gh/glab API tests. No live Claude Code, SigNoz or real MR endpoints."
+}

@@ -1,0 +1,86 @@
+{
+  "status": "PASS",
+  "yaml_agents": 20,
+  "agents": [
+    {
+      "agent": "architect",
+      "status": "PASS"
+    },
+    {
+      "agent": "database-reviewer",
+      "status": "PASS"
+    },
+    {
+      "agent": "developer",
+      "status": "PASS"
+    },
+    {
+      "agent": "engineering-manager-reviewer",
+      "status": "PASS"
+    },
+    {
+      "agent": "engineering-orchestrator",
+      "status": "PASS"
+    },
+    {
+      "agent": "hotfix-developer",
+      "status": "PASS"
+    },
+    {
+      "agent": "incident-investigator",
+      "status": "PASS"
+    },
+    {
+      "agent": "mr-review-publisher",
+      "status": "PASS"
+    },
+    {
+      "agent": "peer-reviewer",
+      "status": "PASS"
+    },
+    {
+      "agent": "performance-reviewer",
+      "status": "PASS"
+    },
+    {
+      "agent": "prd-reviewer",
+      "status": "PASS"
+    },
+    {
+      "agent": "product-manager",
+      "status": "PASS"
+    },
+    {
+      "agent": "qa-support",
+      "status": "PASS"
+    },
+    {
+      "agent": "rca-analyzer",
+      "status": "PASS"
+    },
+    {
+      "agent": "regression-tester",
+      "status": "PASS"
+    },
+    {
+      "agent": "release-reviewer",
+      "status": "PASS"
+    },
+    {
+      "agent": "security-reviewer",
+      "status": "PASS"
+    },
+    {
+      "agent": "tech-lead-reviewer",
+      "status": "PASS"
+    },
+    {
+      "agent": "tester",
+      "status": "PASS"
+    },
+    {
+      "agent": "upgrade-developer",
+      "status": "PASS"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+    "status": "PASS",
+    "version": "3.2.0",
+    "agent_files_checked": 20,
+    "php_files_linted": 21,
+    "errors": [],
+    "warnings": [
+        "Package mode: hooks are not installed into this directory.",
+        "Check execution is intentionally disabled until human isolation and test presets are configured.",
+        "MR fetch/review publication is disabled until allowed_hosts and CLI authentication are configured.",
+        "SigNoz tools are denied until read-only names are explicitly configured."
+    ],
+    "scope": "Local static/configuration checks only; not a live Claude/provider/production integration test."
+}

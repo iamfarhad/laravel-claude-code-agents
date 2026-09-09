@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "version": "3.1.0",
+  "date": "2026-09-09",
+  "tests_verified": 102,
+  "groups": {
+    "GuardTests": 17,
+    "PrdTests": 12,
+    "WorkflowTests": 33,
+    "PublisherTests": 21,
+    "InstallerTests": 19
+  },
+  "execution_note": "Verified in class/segment runs because the host tool wall-clock wrapper interrupted a single long all-suite invocation.",
+  "live_integrations_tested": false
+}
