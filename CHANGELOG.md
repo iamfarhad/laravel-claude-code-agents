@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.2.1 - source restoration + symlinked-checkout fix (2026-09-09)
+- Fixed the PreToolUse guard's repository-root check, which compared the raw session `cwd`
+  against a `__DIR__`-derived root. Because PHP always resolves `__DIR__` through symlinks, any
+  checkout reached through a symlinked ancestor - every macOS temp path via `/var` -> `/private/var`,
+  and any project under a symlinked parent - had EVERY tool call denied with the misleading message
+  "Path is outside the project". Both sides are now canonicalized. `safePath()` is deliberately not
+  used for this comparison: its symlink-component rejection guards write destinations and would
+  reject a legitimate root. Write/Read path guards are unchanged, so symlinked and hard-linked
+  destinations are still denied.
+- Restored the package source that was missing from the repository: the 20 agent definitions, the
+  10 shared rule files, `config.json`, `settings.fragment.json`, the PRD/ADR templates, `.gitignore`,
+  `.mcp.json.example` and the CI workflow. The `.bootstrap/source.tar.gz` archive that was supposed
+  to publish them was truncated (15 KB of a 1.55 MB stream) and failed to decompress, so its
+  workflow could never have restored them.
+- Removed the corrupt `.bootstrap/` archive and its `bootstrap-source.yml` workflow, which ran on
+  every push to `main` and force-committed to the branch. The real `ci.yml` is now the only workflow.
+- Excluded `.claude/settings.json` and `.claude/settings.local.json` from the integrity manifest.
+  They are checkout-local Claude Code state, like `installed-files.json`, and hashing them made
+  `package_integrity.py --check` fail in CI whenever a developer's local settings differed.
+
 ## 3.2.0 - background-review lifecycle fix + repository CI (2026-09-09)
 - Fixed the Stop final gate so non-empty Claude Code `background_tasks` means the main session is paused for in-flight work, not task completion. It no longer forces a premature terminal `ces-result` while background specialists are running.
 - Updated the orchestrator contract to allow parallel read-only specialist reviews on the same immutable snapshot and to pause naturally rather than reporting `BLOCKED` for pending receipts.

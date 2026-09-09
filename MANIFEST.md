@@ -1,6 +1,6 @@
-# Package manifest - v3.2.0
+# Package manifest - v3.2.1
 
-107 regular source files; 20 agents; 14 workflow documents. No runtime sessions, API credentials, vendor packages or ZIP artifacts included.
+106 regular source files; 20 agents; 14 workflow documents. No runtime sessions, API credentials, vendor packages or ZIP artifacts included.
 
 - `.claude/agents/architect.md`
 - `.claude/agents/database-reviewer.md`
@@ -23,7 +23,6 @@
 - `.claude/agents/tester.md`
 - `.claude/agents/upgrade-developer.md`
 - `.claude/engineering-system/config.json`
-- `.claude/engineering-system/package-integrity.json`
 - `.claude/engineering-system/settings.fragment.json`
 - `.claude/engineering-system/templates/adr.md`
 - `.claude/engineering-system/templates/prd.md`

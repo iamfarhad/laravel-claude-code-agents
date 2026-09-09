@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / '.claude/engineering-system/package-integrity.json'
 EXCLUDED_PARTS = {'runtime', 'backups', '__pycache__', '.git'}
-EXCLUDED_FILES = {'.claude/engineering-system/installed-files.json', '.claude/engineering-system/package-integrity.json'}
+EXCLUDED_FILES = {'.claude/engineering-system/installed-files.json', '.claude/engineering-system/package-integrity.json', '.claude/settings.json', '.claude/settings.local.json'}
 
 def version() -> str:
     text=(ROOT/'scripts/claude/lib/common.php').read_text()

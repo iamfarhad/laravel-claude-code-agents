@@ -1,0 +1,29 @@
+name: CES CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: PHP lint
+        run: |
+          find scripts -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l install.php
+      - name: Verify package integrity manifest
+        run: python3 tools/package_integrity.py --check
+      - name: Offline regression suite
+        run: python3 -S scripts/claude/tests/test_system.py
+      - name: Package self-check
+        run: php scripts/claude/checks/self-check.php

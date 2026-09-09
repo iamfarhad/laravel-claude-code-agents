@@ -2,7 +2,7 @@
 
 A production-oriented **Claude Code engineering operating system** for Laravel/backend teams: gated product requirements, specialized engineering agents, independent review roles, exact-MR publication, test evidence, incident flows, and optional SigNoz observability.
 
-**Current version: 3.2.0**
+**Current version: 3.2.1**
 
 > This repository is the source of truth. The installer is designed to layer onto an existing project without replacing that project's `CLAUDE.md` or `README.md`.
 

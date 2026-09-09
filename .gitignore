@@ -1,0 +1,14 @@
+# CES local/runtime state
+.claude/settings.local.json
+.claude/engineering-system/runtime/
+.claude/engineering-system/backups/
+.claude/engineering-system/installed-files.json
+
+# Test/runtime caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+
+# Local build/package outputs
+*.zip

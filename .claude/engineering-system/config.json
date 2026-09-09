@@ -1,0 +1,22 @@
+{
+  "version": 3,
+  "allowed_hosts": [],
+  "allow_publish_nits": false,
+  "execution_isolated": false,
+  "checks": {},
+  "signoz_read_tools": [],
+  "risk_patterns": {
+    "security-reviewer": "~^(?:app/Http/Middleware/|app/Policies/|app/Http/Requests/|config/(?:auth|sanctum|passport|permission|cors|session|hashing)\\.php$|routes/(?:api|web|channels)\\.php$)|^.*(?:Auth|Authoriz|Permission|Policy|Token|Payment|Webhook|Secret|Credential|Encrypt|Tenant)[A-Za-z0-9_]*\\.php$~m",
+    "database-reviewer": "~^(?:database/(?:migrations|seeders|factories)/|app/Models/)|^config/database\\.php$|^.*(?:Migration|Repository|QueryBuilder)[A-Za-z0-9_]*\\.php$~m",
+    "performance-reviewer": "~^config/(?:cache|queue|horizon|scout|octane)\\.php$|^app/(?:Jobs|Console/Commands)/|^.*(?:Cache|Queue|Search|Batch|Chunk|Aggregat)[A-Za-z0-9_]*\\.php$~m",
+    "tech-lead-reviewer": "~^(?:composer\\.json|composer\\.lock|config/app\\.php|bootstrap/app\\.php|artisan)$|^app/Providers/|^routes/console\\.php$|^.*(?:Contract|Interface|Gateway|Adapter|Client|Event|Listener|Subscriber)[A-Za-z0-9_]*\\.php$~m",
+    "engineering-manager-reviewer": "~^(?:\\.github/workflows/|Dockerfile|docker-compose\\.ya?ml|Makefile|\\.gitlab-ci\\.yml)~m",
+    "release-reviewer": "~^config/(?:broadcasting|filesystems|logging)\\.php$|^(?:\\.env\\.example|docker-compose\\.ya?ml)$|^database/migrations/.*(?:drop|truncate|delete|rename)[A-Za-z0-9_]*\\.php$~mi"
+  },
+  "notes": [
+    "Human-owned policy. CES agents may not edit this file; the write guard protects .claude/.",
+    "Never store tokens, passwords or API keys here.",
+    "execution_isolated is an administrative acknowledgement that an external disposable runner exists. It is not a sandbox implementation. See setup/CUSTOMIZATION.md.",
+    "risk_patterns are filename hints that supplement, never replace, semantic impact analysis recorded in task_open.risk_gates."
+  ]
+}

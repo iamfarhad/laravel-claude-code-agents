@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "php \"${CLAUDE_PROJECT_DIR}/scripts/claude/hooks/pre-tool.php\""
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "php \"${CLAUDE_PROJECT_DIR}/scripts/claude/hooks/output-gate.php\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "php \"${CLAUDE_PROJECT_DIR}/scripts/claude/hooks/final-gate.php\""
+          }
+        ]
+      }
+    ]
+  }
+}

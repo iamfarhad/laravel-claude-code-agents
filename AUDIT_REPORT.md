@@ -1,3 +1,15 @@
+# Audit report - v3.2.1 patch note
+
+v3.2.1 is a correctness patch, not a new audit. Two classes of problem were found and fixed. First, the
+repository was missing the package source it documented - the 20 agent definitions, 10 shared rules,
+`config.json`, `settings.fragment.json` and the templates - because the `.bootstrap/source.tar.gz`
+archive intended to publish them was truncated to 15 KB of a 1.55 MB stream and could not decompress.
+Those files are restored and verified by the self-check and the installer test group. Second, running the
+offline suite on a second platform (macOS) exposed a genuine guard defect: the PreToolUse root check
+compared an unresolved session `cwd` against a symlink-resolved root, denying every tool call on any
+symlinked checkout path. Both sides are now canonicalized; the write/read path guards are unchanged, so
+symlinked and hard-linked destinations are still rejected. The residual risks below remain unchanged.
+
 # Audit report - v3.2 lifecycle patch note
 
 v3.2 fixes the main-session lifecycle when Claude Code has in-flight background specialist agents. The Stop hook now consumes the documented `background_tasks` array: non-empty means the session is paused waiting for background work, so the CES final-result gate is deferred until the parent session wakes and no background work remains. A dedicated regression test covers this behavior.
