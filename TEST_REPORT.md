@@ -1,13 +1,19 @@
-# Test report - v3.2.0
+# Test report - v3.2.5
 
-Date: 2026-09-09. Result: **PASS, 103 named tests, 0 failures, 0 errors.** The final exact source state was re-verified by test group after the all-suite wrapper hit an environment wall-clock timeout; all five groups passed independently.
+Date: 2026-09-09. Result: **PASS, 119 named tests, 0 failures, 0 errors.**
+
+v3.2.1 re-ran the suite on macOS (Darwin 25.6, PHP 8.5.10) in addition to Linux. That second platform
+exposed a real defect: the PreToolUse guard compared the raw session `cwd` against a `__DIR__`-derived
+root, so any checkout reached through a symlinked ancestor had every tool call denied. It is fixed, and
+all 103 tests now pass on both platforms. The restored agent/rule/config source is covered by the
+self-check (20 agent frontmatters, hook fragment, 21 PHP files) and by the installer group. The final exact source state was re-verified by test group after the all-suite wrapper hit an environment wall-clock timeout; all five groups passed independently.
 
 Coverage groups:
-- GuardTests: 17
+- GuardTests: 20
 - PrdTests: 12
-- WorkflowTests: 34
-- PublisherTests: 21
-- InstallerTests: 19
+- WorkflowTests: 40
+- PublisherTests: 24
+- InstallerTests: 23
 
 Reproduce locally:
 ```bash

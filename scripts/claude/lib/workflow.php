@@ -12,11 +12,21 @@ function openTask(string $session, array $request): array {
     if (!preg_match('/\A[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\z/',$id)) throw new \RuntimeException('Invalid task_id.');
     $flow=$request['workflow'] ?? '';
     if (!in_array($flow,FLOWS,true)) throw new \RuntimeException('Unsupported workflow.');
+    // Diff scope. On an MR review the checkout sits AT the reviewed head, so defaulting the
+    // base to local HEAD makes `context kind=diff` and every derived risk gate see nothing.
+    // Pass the MR's merge-base (fetch_mr returns it as metadata.base_sha) to scope the task to
+    // the actual change. task_status exposes it, so specialists without fetch_mr can use it too.
+    $base=$request['base_sha'] ?? null;
+    if ($base!==null) {
+        if (!is_string($base) || !preg_match('/\A[a-f0-9]{40,64}\z/',$base)) throw new \RuntimeException('base_sha must be a full immutable commit hash.');
+        if (git(['cat-file','-e',$base.'^{commit}'])['exit_code']!==0) throw new \RuntimeException('base_sha is not a commit in this checkout. Fetch the MR target branch so its merge-base is available locally.');
+    } else $base=headSha();
+    $request['base_sha']=$base;
     if (taskExists($session)) {
         $existing=loadTask($session);
         if ($existing['task_id']===$id) {
             $request['risk_gates']=array_values(array_unique(array_merge($request['risk_gates'] ?? [],match($flow) {'performance'=>['performance-reviewer'],'security'=>['security-reviewer'],'incident','upgrade'=>['release-reviewer'],default=>[]})));
-            foreach (['workflow','prd_path','mr_url','reviewed_head_sha','risk_gates'] as $key) {
+            foreach (['workflow','prd_path','mr_url','reviewed_head_sha','risk_gates','base_sha'] as $key) {
                 if (($request[$key] ?? ($key==='risk_gates'?[]:null))!==($existing[$key] ?? null)) throw new \RuntimeException('Task already exists with different scope; start a new session.');
             }
             return $existing;
@@ -38,7 +48,7 @@ function openTask(string $session, array $request): array {
         requireText($mr,'mr_url',1000);
         if (!is_string($sha) || !preg_match('/\A[a-f0-9]{40,64}\z/',$sha)) throw new \RuntimeException('An existing MR needs the exact reviewed_head_sha. Fetch metadata before opening the task.');
     }
-    $task=['task_id'=>$id,'workflow'=>$flow,'prd_path'=>$prd,'mr_url'=>$mr,'reviewed_head_sha'=>$sha,'risk_gates'=>array_values(array_unique($gates)),'base_sha'=>headSha(),'opened_at'=>gmdate('c'),'repair_attempts'=>0];
+    $task=['task_id'=>$id,'workflow'=>$flow,'prd_path'=>$prd,'mr_url'=>$mr,'reviewed_head_sha'=>$sha,'risk_gates'=>array_values(array_unique($gates)),'base_sha'=>$base,'opened_at'=>gmdate('c'),'repair_attempts'=>0];
     saveTask($session,$task);
     return $task;
 }

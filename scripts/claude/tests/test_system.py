@@ -116,6 +116,33 @@ class GuardTests(Fixture):
  def test_secret_path_read_denied(self):
   for path in ['.env','nested/.env.production','credentials.json','../other']:
    with self.subTest(path=path): self.assertEqual(self.hook('tester','Read',{'file_path':path}).returncode,2)
+ def session_output(self,session,name='big.txt',slug='-project-slug',sub='tool-results'):
+  """Build a Claude Code persisted-tool-output path under a fake HOME."""
+  home=self.outer/'fakehome'; d=home/'.claude/projects'/slug/session/sub; d.mkdir(parents=True,exist_ok=True)
+  f=d/name; f.write_text('persisted broker output'); self.env['HOME']=str(home); return f
+ def test_own_persisted_tool_output_is_readable(self):
+  """Claude Code persists oversized tool output outside the repo and reads it back."""
+  f=self.session_output(self.session)
+  self.assertEqual(self.hook('engineering-orchestrator','Read',{'file_path':str(f)}).returncode,0)
+  self.assertEqual(self.hook('peer-reviewer','Read',{'file_path':str(f)}).returncode,0)
+ def test_other_sessions_and_sibling_paths_still_denied(self):
+  self.session_output(self.session)
+  for path,label in [
+    (self.session_output('another-session-id'),'another session'),
+    (self.session_output(self.session,sub='subagents'),'non tool-results sibling'),
+    (self.outer/'fakehome/.claude/projects/-project-slug'/self.session,'the session directory itself'),
+    (self.outer/'fakehome/.ssh/id_rsa','a home secret'),
+  ]:
+   with self.subTest(label=label):
+    p=Path(str(path))
+    if not p.exists():
+     p.parent.mkdir(parents=True,exist_ok=True); p.write_text('x')
+    self.assertEqual(self.hook('tester','Read',{'file_path':str(p)}).returncode,2,label)
+ def test_persisted_output_symlink_cannot_escape(self):
+  f=self.session_output(self.session)
+  secret=self.outer/'fakehome/.ssh/id_rsa'; secret.parent.mkdir(parents=True,exist_ok=True); secret.write_text('KEY')
+  link=f.parent/'escape.txt'; link.symlink_to(secret)
+  self.assertEqual(self.hook('tester','Read',{'file_path':str(link)}).returncode,2)
  def test_signoz_allowlist_and_mutations(self):
   read='mcp__signoz__signoz_search_logs'; write='mcp__signoz__signoz_create_alert'; self.assertEqual(self.hook('tester',read,{}).returncode,2)
   self.conf['signoz_read_tools']=[read,write]; self.saveconf(); self.assertEqual(self.hook('tester',read,{}).returncode,0); self.assertEqual(self.hook('tester',write,{}).returncode,2)
@@ -155,6 +182,30 @@ class WorkflowTests(Fixture):
    with self.subTest(flow=flow): self.assertEqual(self.php("CES\\output(CES\\openTask('different-'.$x['workflow'],$x));",{'task_id':'T-1','workflow':flow}).returncode,2)
  def test_review_flow_denies_implementation(self):
   self.open('peer-review'); self.assertEqual(self.hook('developer','Write',{'file_path':'app/A.php'}).returncode,2)
+ def test_mr_task_base_sha_restores_diff_scope_and_risk_gates(self):
+  """On an MR checkout the local HEAD IS the reviewed head, so the default base sees nothing."""
+  d=self.repo/'database/migrations'; d.mkdir(parents=True); (d/'2026_add_index.php').write_text('<?php // migration')
+  self.git('add','-A'); self.git('commit','-qm','add migration')
+  head=self.git('rev-parse','HEAD').stdout.strip()
+  req={'task_id':'T-1','workflow':'peer-review','mr_url':'https://github.test/org/repo/pull/7','reviewed_head_sha':head}
+  default=self.decode(self.php("CES\\output(CES\\openTask('sess-default',$x));",req))
+  self.assertEqual(default['base_sha'],head)
+  self.assertEqual(self.decode(self.php("CES\\output(['g'=>CES\\derivedRiskGates(CES\\loadTask('sess-default'))]);"))['g'],[])
+  scoped=self.decode(self.php("CES\\output(CES\\openTask('sess-base',$x));",{**req,'base_sha':self.sha}))
+  self.assertEqual(scoped['base_sha'],self.sha)
+  self.assertIn('database-reviewer',self.decode(self.php("CES\\output(['g'=>CES\\derivedRiskGates(CES\\loadTask('sess-base'))]);"))['g'])
+ def test_base_sha_is_accepted_by_the_broker_and_visible_to_every_role(self):
+  h=self.hook('engineering-orchestrator','Bash',{'command':self.command({'action':'task_open','task_id':'T-1','workflow':'peer-review','mr_url':'https://github.test/org/repo/pull/7','reviewed_head_sha':self.sha,'base_sha':self.sha})})
+  self.assertEqual(h.returncode,0,h.stderr)
+  self.open('peer-review',mr_url='https://github.test/org/repo/pull/7',reviewed_head_sha=self.sha,base_sha=self.sha)
+  # task_status is permitted to ALL roles, so a specialist without fetch_mr can still scope its diff.
+  for role in ['database-reviewer','security-reviewer','performance-reviewer']:
+   with self.subTest(role=role):
+    self.assertEqual(self.decode(self.broker(role,{'action':'task_status'}))['task']['base_sha'],self.sha)
+ def test_unusable_base_sha_rejected(self):
+  for bad in ['b'*40,'not-a-sha','']:
+   with self.subTest(base=bad):
+    self.assertEqual(self.php("CES\\output(CES\\openTask('sess-bad',$x));",{'task_id':'T-1','workflow':'peer-review','base_sha':bad}).returncode,2)
  def test_task_scope_is_immutable(self):
   self.open(); self.assertEqual(self.php("CES\\output(CES\\openTask('test-session',$x));",{'task_id':'T-1','workflow':'feature','prd_path':'docs/prd/Other.md'}).returncode,2)
  def test_implicit_specialists_and_idempotent_task(self):
@@ -183,6 +234,13 @@ class WorkflowTests(Fixture):
   self.open(); self.env['CES_TEST_SECRET']='never-pass-this'; r=self.checked(name='env'); self.assertIn('"APP_ENV":"testing"',r['output']); self.assertIn('"SECRET":false',r['output'])
  def test_dual_pipe_output_no_deadlock(self):
   r=self.decode(self.php("CES\\output(CES\\process([PHP_BINARY,'scripts/claude/tests/fixtures/check.php','noisy'],'',10,1000000));")); self.assertEqual(r['exit_code'],0); self.assertGreater(len(r['stderr']),200000)
+ def test_large_output_is_fully_drained_not_truncated(self):
+  """A single bounded read after child exit could silently truncate a large response."""
+  r=self.decode(self.php("CES\\output(CES\\process([PHP_BINARY,'scripts/claude/tests/fixtures/check.php','noisy'],'',20,8000000));"))
+  self.assertEqual(r['exit_code'],0); self.assertFalse(r['truncated'])
+  self.assertEqual(len(r['stderr']),300000)
+  # the fixture writes 3000x100 bytes per pipe, then a trailing line on stdout only
+  self.assertEqual(len(r['stdout']),300038); self.assertIn('assertion executed',r['stdout'][-60:])
  def test_output_bound(self):
   r=self.decode(self.php("CES\\output(CES\\process([PHP_BINARY,'scripts/claude/tests/fixtures/check.php','noisy'],'',10,1000));")); self.assertTrue(r['truncated']); self.assertNotEqual(r['exit_code'],0)
  def test_blocking_finding_cannot_pass(self):
@@ -232,6 +290,31 @@ class WorkflowTests(Fixture):
   self.ready(); d=self.repo/'database/migrations'; d.mkdir(parents=True); (d/'test.php').write_text('<?php // fixture')
   self.implemented(); self.decode(self.report('peer-reviewer','PASS')); c=self.checked(); self.decode(self.submit_test_report(c['id']))
   r=self.php("CES\\output(CES\\finalizeTask('test-session')); "); self.assertEqual(r.returncode,2); self.assertIn('database-reviewer',r.stdout)
+ def test_risk_patterns_cover_package_based_layout(self):
+  """Stock-Laravel path anchors miss packages/<Vendor>/<Package>/src/ layouts entirely."""
+  self.open()
+  for path,expected in [
+    ('packages/Vendor/RestApi/src/Http/Controllers/V1/Shop/Nested/CheckoutController.php','security-reviewer'),
+    ('packages/Vendor/Storefront/src/Http/Middleware/Theme.php','security-reviewer'),
+    ('app/Builders/DeliveryAddressBuilder.php','security-reviewer'),
+    ('packages/Vendor/Sales/src/Database/Migrations/2026_add_col.php','database-reviewer'),
+    ('packages/Vendor/Sales/src/Repositories/OrderRepository.php','database-reviewer'),
+    ('packages/Vendor/Queueing/src/Jobs/DispatchBatch.php','performance-reviewer'),
+    ('packages/Vendor/Core/src/Providers/CoreServiceProvider.php','tech-lead-reviewer'),
+   ]:
+   with self.subTest(path=path):
+    f=self.repo/path; f.parent.mkdir(parents=True,exist_ok=True); f.write_text('<?php // fixture')
+    gates=self.decode(self.php("CES\\output(['g'=>CES\\derivedRiskGates(CES\\loadTask('test-session'))]);"))['g']
+    f.unlink()
+    self.assertIn(expected,gates,path)
+ def test_generic_package_code_adds_no_risk_gate(self):
+  self.open()
+  for path in ['packages/Vendor/Storefront/src/Http/Controllers/HomeController.php','app/Support/StringHelper.php']:
+   with self.subTest(path=path):
+    f=self.repo/path; f.parent.mkdir(parents=True,exist_ok=True); f.write_text('<?php // fixture')
+    gates=self.decode(self.php("CES\\output(['g'=>CES\\derivedRiskGates(CES\\loadTask('test-session'))]);"))['g']
+    f.unlink()
+    self.assertEqual(gates,[],path)
  def test_untracked_governance_not_application_risk(self):
   self.open(); f=self.repo/'.claude/rules/custom-security.md'; f.write_text('Custom policy'); r=self.decode(self.php("CES\\output(['gates'=>CES\\derivedRiskGates(CES\\loadTask('test-session'))]);")); self.assertEqual(r['gates'],[])
 
@@ -280,6 +363,34 @@ class PublisherTests(Fixture):
    with self.subTest(change=change): self.assertEqual(self.publish(self.payload(**change)).returncode,2)
  def test_invalid_lines_and_duplicate_ids(self):
   self.mock(); p=self.payload(); p['comments'][0]['line']=0; self.assertEqual(self.publish(p).returncode,2); p=self.payload(); p['comments']*=2; self.assertEqual(self.publish(p).returncode,2)
+ def test_fetch_returns_bounded_summary_without_diff_bodies(self):
+  """The raw provider object and diff bodies must not be returned; a large MR outgrew the transcript."""
+  for provider in ['github','gitlab']:
+   with self.subTest(provider=provider):
+    self.setUp(); self.mock(provider)
+    r=self.decode(self.php("CES\\output(CES\\fetchMr($x['url']));",{'url':self.url},lib='mr'))
+    self.assertEqual(r['reviewed_head_sha'],'a'*40); self.assertTrue(r['open']); self.assertFalse(r['diff_incomplete'])
+    blob=json.dumps(r)
+    for leaked in ['@@ -1 +1 @@','+new','-old','avatar_url','time_stats']:
+     self.assertNotIn(leaked,blob,'fetch_mr leaked '+leaked)
+    self.assertEqual([f['new_path'] for f in r['files']],['app/Test.php'])
+    self.assertTrue(r['files'][0]['diff_available'])
+    for key in ['diff','patch']: self.assertNotIn(key,r['files'][0])
+    m=r['metadata']
+    self.assertEqual(m['files_listed'],1); self.assertEqual(m['state'],'open' if provider=='github' else 'opened')
+    self.assertFalse(m['description_truncated']); self.assertEqual(len(m['description_sha256']),64)
+    self.tearDown()
+ def test_fetch_bounds_a_huge_description(self):
+  self.mock('gitlab')
+  s=self.state_value(); s['description']='x'*50000; self.state.write_text(json.dumps(s))
+  r=self.decode(self.php("CES\\output(CES\\fetchMr($x['url']));",{'url':self.url},lib='mr'))
+  m=r['metadata']
+  self.assertTrue(m['description_truncated']); self.assertEqual(len(m['description_excerpt']),8000)
+  self.assertLess(len(json.dumps(r)),20000)
+ def test_incomplete_files_are_individually_marked(self):
+  self.mock(missing_patch=True)
+  r=self.decode(self.php("CES\\output(CES\\fetchMr($x['url']));",{'url':self.url},lib='mr'))
+  self.assertTrue(r['diff_incomplete']); self.assertFalse(r['files'][0]['diff_available'])
  def test_missing_diff_flagged(self):
   self.mock(missing_patch=True); r=self.decode(self.php("CES\\output(CES\\fetchMr($x['url']));",{'url':self.url},lib='mr')); self.assertTrue(r['diff_incomplete'])
  def test_local_lock_blocks_second_publisher(self):
@@ -336,6 +447,26 @@ class InstallerTests(unittest.TestCase):
   self.assertEqual(self.install('--apply').returncode,0); self.assertEqual((self.target/'.gitignore').read_text(),self.orig['.gitignore']); r=self.install('--apply','--add-gitignore'); self.assertEqual(r.returncode,0,r.stderr); text=(self.target/'.gitignore').read_text(); self.assertIn('vendor/\n',text); self.assertEqual(text.count('.claude/engineering-system/runtime/'),1); self.assertEqual(text.count('.claude/engineering-system/backups/'),1); self.assertEqual(text.count('.claude/engineering-system/installed-files.json'),1)
  def test_gitignore_opt_in_is_idempotent(self):
   self.assertEqual(self.install('--apply','--add-gitignore').returncode,0); before=(self.target/'.gitignore').read_text(); self.assertEqual(self.install('--apply','--add-gitignore').returncode,0); self.assertEqual((self.target/'.gitignore').read_text(),before)
+ def test_git_exclude_opt_in_keeps_tracked_tree_clean(self):
+  """.gitignore is tracked; appending to it dirties the tree and blocks commit-bound MR review."""
+  r=self.install('--apply','--add-git-exclude'); self.assertEqual(r.returncode,0,r.stderr)
+  self.assertEqual((self.target/'.gitignore').read_text(),self.orig['.gitignore'])
+  text=(self.target/'.git/info/exclude').read_text()
+  for pattern in ['.claude/engineering-system/runtime/','.claude/engineering-system/backups/','.claude/engineering-system/installed-files.json']:
+   self.assertEqual(text.count(pattern),1,pattern)
+ def test_git_exclude_preserves_existing_local_patterns_and_is_idempotent(self):
+  info=self.target/'.git/info'; info.mkdir(parents=True); (info/'exclude').write_text('# local\nmy-scratch/\n')
+  self.assertEqual(self.install('--apply','--add-git-exclude').returncode,0)
+  first=(info/'exclude').read_text(); self.assertIn('my-scratch/',first); self.assertIn('.claude/engineering-system/runtime/',first)
+  self.assertEqual(self.install('--apply','--add-git-exclude').returncode,0)
+  self.assertEqual((info/'exclude').read_text(),first)
+ def test_gitignore_and_git_exclude_are_mutually_exclusive(self):
+  before=self.snapshot(); r=self.install('--apply','--add-gitignore','--add-git-exclude')
+  self.assertEqual(r.returncode,2); self.assertEqual(before,self.snapshot())
+ def test_git_exclude_rejected_in_linked_worktree_without_writes(self):
+  (self.target/'.git').rmdir(); (self.target/'.git').write_text('gitdir: /dummy/test-only\n')
+  before=self.snapshot(); r=self.install('--apply','--add-git-exclude')
+  self.assertEqual(r.returncode,2); self.assertEqual(before,self.snapshot())
  def test_legacy_publisher_autoallow_removed_only_explicit_migration(self):
   self.setsettings({'permissions':{'allow':['Bash(php scripts/claude/mr/publish-review.php *)','Read']}}); r=self.install('--apply','--replace-existing'); self.assertEqual(r.returncode,0,r.stderr); self.assertEqual(json.loads((self.target/'.claude/settings.json').read_text())['permissions']['allow'],['Read'])
 

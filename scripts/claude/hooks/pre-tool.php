@@ -8,8 +8,15 @@ try {
     // Unknown non-CES subagents are outside this package's authority.
     if (!in_array($role,CES\ROLES,true)) exit(0);
     $session=CES\requireText($input['session_id'] ?? null,'session_id',300);
-    $cwd=CES\safePath(CES\requireText($input['cwd'] ?? null,'cwd'));
-    if ($cwd!==CES\root()) throw new RuntimeException('Start the CES session from the repository root; nested CWDs and other worktrees are not supported by this installation.');
+    // Compare CANONICAL paths. root() comes from __DIR__, which PHP always resolves through
+    // symlinks, while the session cwd legitimately arrives unresolved (/var -> /private/var on
+    // macOS, or any checkout reached through a symlinked ancestor). Comparing the raw strings
+    // denied every tool call on those hosts. safePath() is deliberately not used here: its
+    // symlink-component rejection protects write DESTINATIONS and would reject a valid root.
+    $cwdInput=CES\requireText($input['cwd'] ?? null,'cwd');
+    if (str_contains($cwdInput,"\0")) throw new RuntimeException('Invalid cwd.');
+    $cwd=realpath($cwdInput);
+    if ($cwd===false || $cwd!==CES\root()) throw new RuntimeException('Start the CES session from the repository root; nested CWDs and other worktrees are not supported by this installation.');
     $tool=CES\requireText($input['tool_name'] ?? null,'tool_name',200);
     $args=$input['tool_input'] ?? null;
     if (!is_array($args)) throw new RuntimeException('Missing tool input.');
@@ -27,7 +34,8 @@ try {
     }
     if (in_array($tool,['Read','Grep','Glob'],true)) {
         $path=$args['file_path'] ?? $args['path'] ?? CES\root();
-        CES\authorizeRead((string)$path); exit(0);
+        $transcript=is_string($input['transcript_path'] ?? null)?$input['transcript_path']:null;
+        CES\authorizeRead((string)$path,$session,$transcript); exit(0);
     }
     if ($tool==='Agent') {
         if ($role!=='engineering-orchestrator' || !in_array($args['subagent_type'] ?? '',array_diff(CES\ROLES,['engineering-orchestrator']),true)) throw new RuntimeException('Only the main orchestrator may delegate to a listed CES specialist.');

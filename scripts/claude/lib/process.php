@@ -30,7 +30,16 @@ function process(array $argv, string $stdin = '', int $timeout = 30, int $limit 
             $s = proc_get_status($p);
             if (!$s['running']) {
                 $exit=(int)$s['exitcode'];
-                foreach ([1,2] as $i) { $chunk=stream_get_contents($pipes[$i],65536); if ($i===1) $out.=$chunk; else $err.=$chunk; }
+                // Drain to EOF. A single bounded read is not guaranteed to empty a pipe, so
+                // a large provider response could be silently truncated into invalid JSON.
+                foreach ([1,2] as $i) {
+                    while (!feof($pipes[$i])) {
+                        $chunk=stream_get_contents($pipes[$i],65536);
+                        if ($chunk===false || $chunk==='') break;
+                        if ($i===1) $out.=$chunk; else $err.=$chunk;
+                        if (strlen($out)+strlen($err)>$limit) break;
+                    }
+                }
                 break;
             }
             if (strlen($out)+strlen($err)>$limit || microtime(true)-$started>$timeout) {

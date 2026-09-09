@@ -2,7 +2,7 @@
 
 ## Prerequisites and boundaries
 PHP 8.2+ with JSON, proc_open and normal filesystem functions; Git with an initial commit; a Unix-like runtime (Linux/macOS). Optional Python 3.10+ for the offline regression suite. Optional glab/gh only for actual MR/PR access. Use a current Claude Code release supporting documented agent_type hooks and PreToolUse.updatedInput.
-The audit ran locally on Linux/PHP 8.4.23. macOS and live Claude behavior are not claimed as tested. Windows is not supported by this package's paths/process assumptions.
+The v3.0 audit ran locally on Linux/PHP 8.4.23. The v3.2.1 offline suite was additionally re-run on macOS 15 (Darwin 25.6)/PHP 8.5.10, which is what exposed the symlinked-checkout guard defect fixed in 3.2.1; all 103 tests pass on both. Live Claude Code behavior is still not claimed as tested - run the runtime smoke test. Windows is not supported by this package's paths/process assumptions.
 
 ## New installation
 Extract the package OUTSIDE your repository. In a clean, trusted project root:
@@ -27,6 +27,8 @@ php /absolute/path/laravel-claude-code-agents/install.php --apply --allow-host=g
 This is an explicit human trust decision. Wildcards, schemes, paths and ports are rejected. Repeat `--allow-host=...` to trust more than one exact host.
 
 If you want the installer to append only the CES runtime exclusions to the existing `.gitignore`, add `--add-gitignore`. It preserves existing entries and backs up the file before changing it.
+
+`.gitignore` is a TRACKED file, so appending to it leaves the working tree dirty - and commit-bound MR review requires a clean tracked tree. If this checkout is used to review MRs, or CES is strictly personal, use `--add-git-exclude` instead: it writes the same exclusions to `.git/info/exclude`, which is local and never tracked, so it cannot block a review of the checkout it lives in. The two flags are alternatives and cannot be combined. `--add-git-exclude` needs a normal `.git` directory; in a linked worktree, add the lines to that worktree's own `info/exclude` by hand.
 
 ## Upgrade from the earlier ZIP
 Start with a dry run. Existing unowned/customized package paths may conflict. Inspect the conflicts, then intentionally migrate:

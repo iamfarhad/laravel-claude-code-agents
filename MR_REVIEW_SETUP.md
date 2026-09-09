@@ -18,7 +18,7 @@ Review https://gitlab.your-company.example/group/project/-/merge_requests/123 as
 Return the full findings in the console and publish them to this MR.
 Do not modify code, approve, merge or resolve discussions.
 ```
-Before delegation, the MAIN orchestrator reads the human policy, verifies the MR host is allowlisted, fetches metadata, and opens a read-only task with the exact head SHA. If the host is not trusted, it must stop with the exact configuration remediation; it must not spawn a specialist to diagnose configuration. A human/CI must provision a clean checkout at that same commit. A new human push requires new review evidence; the publisher never silently retargets old findings.
+Before delegation, the MAIN orchestrator reads the human policy, verifies the MR host is allowlisted, fetches metadata, and opens a read-only task with the exact head SHA. The fetch returns a bounded summary and the changed-file list, not the diff bodies: pick risk gates from those paths and change kinds, and read the code itself from the clean local checkout at the reviewed head. If the host is not trusted, it must stop with the exact configuration remediation; it must not spawn a specialist to diagnose configuration. A human/CI must provision a clean checkout at that same commit. A new human push requires new review evidence; the publisher never silently retargets old findings.
 
 ## Publication behavior
 - Inline findings use exact side/path/line (GitLab also diff refs/old path as appropriate).

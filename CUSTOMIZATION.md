@@ -45,5 +45,13 @@ Record explicit semantic reviewer names in task_open.risk_gates. Filename patter
 Agents can return summaries in the team's preferred language while preserving JSON keys, AC IDs, paths and hashes. Project conventions remain in existing CLAUDE.md. Do not encode guessed versions, team owners, SLOs, deadlines or credentials in prompts.
 
 ## Local working tree
+Install with `--add-git-exclude` rather than `--add-gitignore` on any checkout you review MRs from: the
+former writes to untracked `.git/info/exclude`, the latter dirties the tracked `.gitignore`. Commit the CES
+installation itself before reviewing, since installing it also leaves untracked files behind.
+
+Filename `risk_patterns` ship tuned for stock Laravel plus Bagisto/Webkul `packages/<Vendor>/<Package>/src/`
+layouts. If your code lives elsewhere, extend them - an unmatched path silently yields no gate, and semantic
+`risk_gates` at `task_open` remain the authority either way.
+
 Use one task/session and one writer per checkout; source/PRD changes invalidate receipts. Existing MR publication requires a clean tracked checkout at the exact reviewed head. Installation or customized tracked governance may dirty a checkout: provision a clean trusted baseline before reviewing, rather than hiding those modifications.
 Separate session worktrees may be prepared by a human/CI. Do not set isolation:worktree independently on every specialist: that can cause them to inspect different snapshots.
