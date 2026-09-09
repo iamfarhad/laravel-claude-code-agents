@@ -1,6 +1,6 @@
 # Package manifest - v3.2.5
 
-106 regular source files; 20 agents; 14 workflow documents. No runtime sessions, API credentials, vendor packages or ZIP artifacts included.
+107 regular source files; 20 agents; 14 workflow documents. No runtime sessions, API credentials, vendor packages or ZIP artifacts included.
 
 - `.claude/agents/architect.md`
 - `.claude/agents/database-reviewer.md`
@@ -47,6 +47,7 @@
 - `MR_REVIEW_SETUP.md`
 - `PACKAGE_README.md`
 - `README.md`
+- `SAMPLES.md`
 - `SECURITY_MODEL.md`
 - `SIGNOZ_SETUP.md`
 - `TEST_REPORT.md`

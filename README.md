@@ -139,6 +139,7 @@ GitHub Actions runs lint, integrity verification, regression tests and self-chec
 ## Documentation
 
 - [Installation](INSTALL.md)
+- [Usage samples](SAMPLES.md)
 - [Customization](CUSTOMIZATION.md)
 - [MR review publishing](MR_REVIEW_SETUP.md)
 - [SigNoz setup](SIGNOZ_SETUP.md)
