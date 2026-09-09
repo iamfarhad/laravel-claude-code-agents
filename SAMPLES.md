@@ -48,7 +48,9 @@ If it says `BLOCKED`, that is usually a real answer rather than a bug - see
 
 ## 2. Pick your situation
 
-Replace anything in `<angle brackets>`. Keep the task ID: it names the session's scope.
+Replace anything in `<angle brackets>`, and swap the example ticket IDs - `B2B-142`, `OPS-88`, `UPG-5` and the
+rest are placeholders - for your own issue key. Keep *some* ID in the prompt: it names the session's scope and the
+PRD file (`docs/prd/<your-id>.md`).
 
 ### A new feature
 
