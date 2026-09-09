@@ -22,8 +22,9 @@ if path==base and method=='GET':
  s['meta_reads']=s.get('meta_reads',0)+1
  sha=s.get('sha','a'*40)
  if s.get('stale_after') and s['meta_reads']>s['stale_after']: sha='b'*40
- if provider=='github': done({'state':s.get('state','open'),'head':{'sha':sha},'number':7})
- done({'state':s.get('state','opened'),'sha':sha,'diff_refs':{'head_sha':sha},'iid':7})
+ text=s.get('description','Controlled fixture description')
+ if provider=='github': done({'state':s.get('state','open'),'head':{'sha':sha,'ref':'feature'},'base':{'sha':'c'*40,'ref':'main'},'number':7,'body':text,'title':'Controlled fixture MR','user':{'login':'fixture-author'},'changed_files':1,'mergeable':True,'mergeable_state':'clean'})
+ done({'state':s.get('state','opened'),'sha':sha,'diff_refs':{'head_sha':sha,'base_sha':'c'*40,'start_sha':'d'*40},'iid':7,'description':text,'title':'Controlled fixture MR','author':{'username':'fixture-author'},'changes_count':'1','detailed_merge_status':'mergeable','has_conflicts':False,'user_notes_count':2})
 if path==base+'/versions': done([{'head_commit_sha':s.get('version_sha',s.get('sha','a'*40)),'base_commit_sha':'c'*40,'start_commit_sha':'d'*40}])
 if path in [base+'/files',base+'/diffs']:
  if s.get('missing_patch'): done([{'filename':'a.bin'}] if provider=='github' else [{'new_path':'a.bin','too_large':True}])

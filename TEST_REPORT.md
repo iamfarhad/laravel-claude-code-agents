@@ -1,6 +1,6 @@
-# Test report - v3.2.2
+# Test report - v3.2.3
 
-Date: 2026-09-09. Result: **PASS, 107 named tests, 0 failures, 0 errors.**
+Date: 2026-09-09. Result: **PASS, 110 named tests, 0 failures, 0 errors.**
 
 v3.2.1 re-ran the suite on macOS (Darwin 25.6, PHP 8.5.10) in addition to Linux. That second platform
 exposed a real defect: the PreToolUse guard compared the raw session `cwd` against a `__DIR__`-derived
@@ -12,7 +12,7 @@ Coverage groups:
 - GuardTests: 20
 - PrdTests: 12
 - WorkflowTests: 35
-- PublisherTests: 21
+- PublisherTests: 24
 - InstallerTests: 19
 
 Reproduce locally:

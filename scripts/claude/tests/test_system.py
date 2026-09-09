@@ -314,6 +314,34 @@ class PublisherTests(Fixture):
    with self.subTest(change=change): self.assertEqual(self.publish(self.payload(**change)).returncode,2)
  def test_invalid_lines_and_duplicate_ids(self):
   self.mock(); p=self.payload(); p['comments'][0]['line']=0; self.assertEqual(self.publish(p).returncode,2); p=self.payload(); p['comments']*=2; self.assertEqual(self.publish(p).returncode,2)
+ def test_fetch_returns_bounded_summary_without_diff_bodies(self):
+  """The raw provider object and diff bodies must not be returned; a large MR outgrew the transcript."""
+  for provider in ['github','gitlab']:
+   with self.subTest(provider=provider):
+    self.setUp(); self.mock(provider)
+    r=self.decode(self.php("CES\\output(CES\\fetchMr($x['url']));",{'url':self.url},lib='mr'))
+    self.assertEqual(r['reviewed_head_sha'],'a'*40); self.assertTrue(r['open']); self.assertFalse(r['diff_incomplete'])
+    blob=json.dumps(r)
+    for leaked in ['@@ -1 +1 @@','+new','-old','avatar_url','time_stats']:
+     self.assertNotIn(leaked,blob,'fetch_mr leaked '+leaked)
+    self.assertEqual([f['new_path'] for f in r['files']],['app/Test.php'])
+    self.assertTrue(r['files'][0]['diff_available'])
+    for key in ['diff','patch']: self.assertNotIn(key,r['files'][0])
+    m=r['metadata']
+    self.assertEqual(m['files_listed'],1); self.assertEqual(m['state'],'open' if provider=='github' else 'opened')
+    self.assertFalse(m['description_truncated']); self.assertEqual(len(m['description_sha256']),64)
+    self.tearDown()
+ def test_fetch_bounds_a_huge_description(self):
+  self.mock('gitlab')
+  s=self.state_value(); s['description']='x'*50000; self.state.write_text(json.dumps(s))
+  r=self.decode(self.php("CES\\output(CES\\fetchMr($x['url']));",{'url':self.url},lib='mr'))
+  m=r['metadata']
+  self.assertTrue(m['description_truncated']); self.assertEqual(len(m['description_excerpt']),8000)
+  self.assertLess(len(json.dumps(r)),20000)
+ def test_incomplete_files_are_individually_marked(self):
+  self.mock(missing_patch=True)
+  r=self.decode(self.php("CES\\output(CES\\fetchMr($x['url']));",{'url':self.url},lib='mr'))
+  self.assertTrue(r['diff_incomplete']); self.assertFalse(r['files'][0]['diff_available'])
  def test_missing_diff_flagged(self):
   self.mock(missing_patch=True); r=self.decode(self.php("CES\\output(CES\\fetchMr($x['url']));",{'url':self.url},lib='mr')); self.assertTrue(r['diff_incomplete'])
  def test_local_lock_blocks_second_publisher(self):

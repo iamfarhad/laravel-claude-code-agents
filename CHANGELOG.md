@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.2.3 - bounded fetch_mr result (2026-09-09)
+- `fetch_mr` no longer returns the raw provider object or any diff body. It previously returned
+  the entire MR/PR payload - description, repeated actor blobs, pipeline objects, avatar URLs -
+  plus the full patch for every changed file. On a 134-file MR that is ~637 KB, which overran the
+  transcript, forced the CLI to persist the result to a file, and then dominated the
+  orchestrator's context for the rest of the task.
+- It now returns a provider-normalized summary (head SHA, open state, title, branches,
+  author/reviewers/assignees, merge status and conflicts, pipeline status, counts, labels, base
+  and start SHAs, plus a description excerpt bounded to 8 KB with a truncation flag and a
+  sha256 of the full text) and one entry per changed file carrying `new_path`, `old_path`, the
+  change kind, line counts and `diff_available`. Measured on that same shape: 637 KB -> 52 KB,
+  a 91.8% reduction, with the head SHA and every risk-gate input preserved.
+- Diff bodies were redundant: `peer-reviewer` is required to review a clean local checkout at
+  the exact reviewed head, and the workflow already refuses a commit-bound review otherwise.
+  Per-file `diff_available` now says exactly which files the provider diff did not cover,
+  instead of only the aggregate `diff_incomplete` flag.
+- Extended the offline provider fixture to return realistic MR metadata, and added tests
+  asserting no diff body or raw-payload field survives, that a huge description is bounded, and
+  that an uncovered file is individually marked.
+
 ## 3.2.2 - harness interop: reading back persisted tool output (2026-09-09)
 - Fixed the read guard denying Claude Code's own persisted tool output. When a broker result
   is too large for the transcript, the CLI writes it to
