@@ -1,6 +1,7 @@
 {
   "version": 3,
   "allowed_hosts": [],
+  "confluence_hosts": [],
   "allow_publish_nits": false,
   "execution_isolated": false,
   "checks": {},
@@ -15,7 +16,8 @@
   },
   "notes": [
     "Human-owned policy. CES agents may not edit this file; the write guard protects .claude/.",
-    "Never store tokens, passwords or API keys here.",
+    "Never store tokens, passwords or API keys here. Confluence credentials come from CONFLUENCE_TOKEN or CONFLUENCE_USER/CONFLUENCE_API_TOKEN in the environment.",
+    "confluence_hosts lists the exact hostnames the PRD importer may read pages from over HTTPS; empty disables URL import.",
     "execution_isolated is an administrative acknowledgement that an external disposable runner exists. It is not a sandbox implementation. See setup/CUSTOMIZATION.md.",
     "risk_patterns are filename hints that supplement, never replace, semantic impact analysis recorded in task_open.risk_gates."
   ]

@@ -22,4 +22,4 @@ Protected branches/CI, independent human approval, least-privilege provider iden
 
 ## Failures and escape hatches
 A malformed specialist result gets one repair request; then it may stop, but its receipt is invalid and downstream completion stays blocked. Missing configuration/access/test evidence causes BLOCKED, not a silent bypass. Three total implementation reports consuming attempts bound autonomous rework, but do not cap all model/tool costs; use session/runner budgets too.
-No approve, merge, resolve, close, push, rebase, deploy or production mutation is implemented. The one scoped external write is human-authorized review comments.
+No approve, merge, resolve, close, push, rebase, deploy or production mutation is implemented. The one scoped external write is human-authorized review comments. The one scoped external read beyond MR metadata is the PRD importer's Confluence page fetch: HTTPS to an exact allowlisted host, one REST endpoint shape, no redirects, bounded body, credentials from the environment only and never echoed.

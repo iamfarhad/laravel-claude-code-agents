@@ -9,18 +9,28 @@ function parseBrokerCommand(string $command): array {
     if (preg_match('/^CES_REQUEST\r?$/m',$m[1])) throw new \RuntimeException('Embedded heredoc delimiter is forbidden.');
     return jsonObject($m[1]);
 }
-function authorizeAction(string $role,array $request,string $session): void {
-    $action=$request['action'] ?? '';
-    $permissions=[
+/**
+ * Broker action => roles allowed to request it. Single source of truth: the PreToolUse hook, the
+ * broker and the self-check (which verifies that no agent prompt shows an action its role cannot
+ * call) all read this table. Diagnosis roles (qa-support, incident-investigator) and the
+ * performance gate may reproduce with a configured preset; the other reviewers never execute.
+ */
+function actionPermissions(): array {
+    return [
         'task_open'=>['engineering-orchestrator'],
         'task_status'=>ROLES,
-        'context'=>array_diff(ROLES,['mr-review-publisher']),
-        'validate_prd'=>array_diff(ROLES,['mr-review-publisher']),
+        'context'=>array_values(array_diff(ROLES,['mr-review-publisher'])),
+        'validate_prd'=>array_values(array_diff(ROLES,['mr-review-publisher'])),
         'fetch_mr'=>['engineering-orchestrator','peer-reviewer','tech-lead-reviewer','engineering-manager-reviewer'],
-        'run_check'=>array_merge(DEVELOPERS,TESTERS,['qa-support','performance-reviewer']),
+        'run_check'=>array_merge(DEVELOPERS,TESTERS,['qa-support','incident-investigator','performance-reviewer']),
         'publish_review'=>['mr-review-publisher'],
+        'import_prd'=>['product-manager'],
         'finalize'=>['engineering-orchestrator'],
     ];
+}
+function authorizeAction(string $role,array $request,string $session): void {
+    $action=$request['action'] ?? '';
+    $permissions=actionPermissions();
     if (!in_array($role,$permissions[$action] ?? [],true)) throw new \RuntimeException('Action not allowed for this role.');
     $keys=match($action) {
         'task_open'=>['action','task_id','workflow','prd_path','mr_url','reviewed_head_sha','risk_gates','base_sha'],
@@ -28,6 +38,7 @@ function authorizeAction(string $role,array $request,string $session): void {
         'fetch_mr'=>['action','mr_url'],
         'run_check'=>['action','name'],
         'publish_review'=>['action','dry_run'],
+        'import_prd'=>['action','source','url','owner','title','overwrite'],
         default=>['action'],
     };
     if (array_diff(array_keys($request),$keys)) throw new \RuntimeException('Unknown broker request fields.');

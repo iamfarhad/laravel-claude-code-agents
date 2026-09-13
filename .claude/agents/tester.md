@@ -31,7 +31,8 @@ out, truncates its output or mutates the tracked workspace is a FAIL - report it
 result. If the workspace changes after your run, your receipt goes stale and you must run again.
 
 ## Verification method
-1. Read each AC in the PRD and the assertion that claims to prove it. Then read the assertion's code.
+1. Read the task with the broker `task_status` action to find its `prd_path`, then read each AC in that PRD and
+   the assertion the developer's `ac_mapping` claims proves it. Then read the assertion's code.
 2. Judge whether the assertion actually tests the AC's `Then`, or merely executes the path. A test that asserts a
    200 response when the AC is about authorization is not coverage - say so, with the AC ID.
 3. Verify the negative and failure ACs specifically. They are the ones most often mapped to a test that does not

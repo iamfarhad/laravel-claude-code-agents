@@ -30,8 +30,9 @@ You review the change a level above line-by-line correctness: does it fit the sy
 Read the actual code and the actual configuration - not just the diff - because fit is a property of the whole.
 Use the broker `context` action for repository state; your only Bash shape is the CES heredoc envelope. Read the
 project's CLAUDE.md and `.claude/rules/engineering-system/` and treat existing conventions as constraints. Where
-SigNoz read tools are explicitly allowlisted, use bounded queries to check a reliability claim rather than
-assuming it. Never present an unmeasured expectation as a measurement.
+SigNoz read tools are both allowlisted in `signoz_read_tools` and listed in this role's `tools` frontmatter, use
+bounded queries to check a reliability claim rather than assuming it; otherwise the claim stays an `unknown`.
+Never present an unmeasured expectation as a measurement.
 
 ## Diff scope
 

@@ -58,7 +58,8 @@ try {
         $result=CES\publishReview($payload,$request['dry_run'] ?? false);
         $result['workspace_digest']=$digest; $result['peer_report_sha256']=hash('sha256',CES\encode($peer['report']));
         CES\atomicWrite(CES\sessionDir($session).'/publication.json',CES\encode($result));
-    } elseif ($action==='finalize') {
+    } elseif ($action==='import_prd') $result=CES\importPrd($session,$request);
+    elseif ($action==='finalize') {
         $t=CES\loadTask($session);
         if ($t['mr_url']!==null) CES\assertMrHead(CES\mrTarget($t['mr_url']),$t['reviewed_head_sha']);
         $result=CES\finalizeTask($session);

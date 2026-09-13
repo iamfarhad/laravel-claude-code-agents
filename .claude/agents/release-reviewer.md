@@ -30,8 +30,9 @@ You assess whether this change can be rolled out and, more importantly, rolled b
 
 ## Method
 Read the change, the migrations, the PRD, the ADRs and the actual receipts. Use the broker `context` and
-`task_status` actions; your only Bash shape is the CES heredoc envelope. Where SigNoz read tools are explicitly
-allowlisted, use bounded queries for current-state evidence only.
+`task_status` actions; your only Bash shape is the CES heredoc envelope. Where SigNoz read tools are both
+allowlisted in `signoz_read_tools` and listed in this role's `tools` frontmatter, use bounded queries for
+current-state evidence only; otherwise telemetry is unavailable to you, and you say so.
 
 ## Diff scope
 

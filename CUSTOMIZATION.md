@@ -38,6 +38,89 @@ Merge the example into the existing version:3 config; do not discard allowed_hos
 The process environment is rebuilt rather than inheriting secrets, but application bootstrap can still read files such as .env/.env.testing. A test can execute arbitrary PHP and subprocesses. APP_ENV=testing by itself proves nothing about safe isolation.
 Checks modifying tracked/unignored workspace fail verification; normal ignored cache/coverage artifacts may be permitted by the actual isolated environment. A timeout terminates the direct child, not a guaranteed entire process tree; use container/runner limits for descendants.
 
+## Importing an existing PRD
+
+If your product contracts are authored elsewhere (Confluence, a wiki, a shared document), save the export under
+`docs/prd/sources/` (or anywhere under `docs/prd/` or `docs/product/`) and either ask the session to convert it -
+the `product-manager` runs the importer through the broker action `import_prd` and then finishes the conversion
+by hand - or run the importer yourself:
+
+```bash
+php scripts/claude/tools/import-prd.php --in=docs/prd/sources/B2B-142.xhtml --id=B2B-142 \
+  --owner='<accountable human>' --out=docs/prd/B2B-142.md
+```
+
+Either way the rule is the same and the `prd-reviewer` enforces it by diffing draft against source: the
+conversion categorises and standardises, it never adds, drops or reinterprets. The importer normalizes structure
+only, and it is deliberately limited:
+
+- Section headings, `FR-xx`/`AC-xx` identifiers and `Given/When/Then/Verification/Requirement` labels become the
+  ASCII forms `validate-prd.php` matches. Body text is copied verbatim, so a Persian PRD stays Persian - Persian
+  and Arabic-Indic digits are folded only inside identifiers.
+- HTML and Word tables become markdown tables. A requirements table contributes one `FR` per row from its
+  requirement column; an acceptance-criteria table whose header cells are the Given/When/Then labels (in any
+  recognised language) contributes one `AC` per row, with a blank cell listed as a gap rather than filled.
+  Any other table is kept as a table.
+- Bold-only paragraphs are treated as group headings, so `**Authentication**` above its bullets survives as
+  a label. A numbered container chapter with no content of its own (`4. Product Requirements (PRD)`) is
+  recorded as an unmapped heading and not emitted as a stray line into the previous section.
+- The document title is the first heading before any recognised section. When the export starts directly
+  with a section, no title is guessed: it is listed as a gap.
+- Every empty section is listed under `Open Questions`, addressed to the accountable human, so the draft is the
+  complete worklist and nobody has to consult the stderr report to find what is missing.
+- The stderr report's `unmapped_headings` names, for each heading it did not recognise, exactly where the
+  content went: a sub-heading kept inside a mapped section, a sub-heading of an unmapped section, its own
+  entry under `Unmapped Source Sections`, or empty in the source. Nothing is dropped without being named.
+- Bilingual, numbered headings such as `2 توصیف مساله (Problem Definition)` are matched on the whole text,
+  then on the part outside the parentheses, then on each parenthesised part - exact alias matches only. A
+  heading that merely contains a familiar word is not guessed at.
+- The alias table is deliberately conservative: an alias must name exactly one canonical section. A heading
+  that is broader (`Metrics & Goals`), a neighbouring concept (`Executive Summary`, `Business Opportunity`),
+  a whole document (`MRD`) or a bare generic word (`requirements`, `data`) is left unrecognised so that a
+  product-manager who can read the text decides where it belongs. Add your team's exact wording with
+  `--print-map` and `--map`; that file is the right place for judgements about your own documents.
+- A source section with no canonical equivalent (solution options, user flow, algorithm rules, FAQ, approvers,
+  the author/status table before the first section) is kept verbatim under `## Unmapped Source Sections`,
+  never merged into the previous section where it would read as that section's content. `validate-prd.php`
+  refuses readiness while that section exists; the product-manager places each entry and then deletes it.
+- Nested sub-bullets stay indented under the requirement above them; only top-level items and numbered
+  stories (`1- به عنوان کاربر ...`) become `- FR-xx:` lines.
+- PDF exports are refused: their text layer scrambles right-to-left text. Export Word (.docx) or the page's
+  storage-format XHTML instead, or import from the page URL.
+
+### Importing straight from Confluence
+Add the exact hostname to `confluence_hosts` in `.claude/engineering-system/config.json` (for example
+`["docs.digikala.com"]`), or rerun the installer with `--allow-confluence-host=docs.digikala.com`. It is a
+separate list from `allowed_hosts`, which is for MR/PR providers only. Then export credentials in the shell
+that runs Claude Code - never in a project file:
+```bash
+export CONFLUENCE_TOKEN='<personal access token>'        # Server / Data Center, sent as Bearer
+# or, for Atlassian Cloud:
+export CONFLUENCE_USER='me@example.com' CONFLUENCE_API_TOKEN='<api token>'
+```
+Then either run the importer with `--url=https://docs.digikala.com/spaces/B2BTP/pages/180753756/Cross-selling
+--save-source=docs/prd/sources/<id>.xhtml`, or ask the session to convert that link: the product-manager calls
+`import_prd` with `url`, and the broker saves the fetched page as `docs/prd/sources/<task_id>.xhtml` for the
+reviewer's diff. The fetch is a single read of the content REST API (`/rest/api/content/<id>?expand=body.storage`,
+falling back to the `/wiki` prefix for Cloud), HTTPS only, no redirects, bounded to 4 MiB, with the token passed
+through curl's config stdin so it never appears in a process list. An internal host that is reachable only on
+the company network fails with a message saying so; an internal CA must be trusted by curl (`CURL_CA_BUNDLE`).
+Nothing is ever written to Confluence.
+- Persian heading and label wording is recognised out of the box (`نیازمندی‌های عملکردی`, `معیارهای پذیرش`,
+  `فرض/وقتی/آنگاه/تایید/نیازمندی`, and more), including ZWNJ and Arabic letter-form variants. `--print-map`
+  emits the tables; pass an edited copy as `--map=` to add your team's wording.
+- The emitted `Status` is always `DRAFT`. The importer cannot create readiness, and it never invents an owner, a
+  verification or a requirement mapping - unstated items are listed under `Open Questions` and in its stderr
+  report.
+- A `Status:` or `Owner:` line found inside the exported body is quoted, so exported text cannot supply this
+  document's metadata. The export is untrusted data either way: an instruction inside it has no authority.
+- `--out` accepts only `docs/prd/` and `docs/product/` paths. It performs no network access; fetching or
+  exporting the page is your step.
+
+Inside a session only the `product-manager` may trigger it, through the broker (`import_prd`), on a file a human
+already placed under the product-document directories; its Bash is otherwise restricted to the broker envelope. A
+`product-manager` completes the draft without adding meaning and an independent `prd-reviewer` approves it.
+
 ## Risk gates and ownership
 Record explicit semantic reviewer names in task_open.risk_gates. Filename patterns are only hints. Incident/upgrade mandate release-reviewer; security/performance mandate their specialist. Product-manager can author readiness but cannot create human stakeholder approval.
 

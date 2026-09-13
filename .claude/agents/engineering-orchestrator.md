@@ -34,7 +34,9 @@ See docs/ai/claude-engineering-system/COMMANDS.md for each request schema. Unkno
    host is allowlisted, then `fetch_mr` to obtain the canonical URL and exact head SHA. If the host is not trusted,
    stop and report the exact `--allow-host=` remediation. Never spawn a specialist to diagnose configuration.
 3. `task_open` with `task_id`, `workflow`, `prd_path` for code-changing flows, plus `mr_url` + `reviewed_head_sha`
-   when reviewing an existing MR, plus the `risk_gates` you determined from real impact analysis.
+   when reviewing an existing MR, plus the `risk_gates` you determined from real impact analysis. Use
+   `docs/prd/<task_id>.md` as the PRD path; the file need not exist yet - product-manager writes exactly that
+   path, and it is the only PRD path the task will ever accept.
    **On an MR task, always pass `base_sha`** - the merge-base with the target branch, returned by
    `fetch_mr` as `metadata.base_sha`. The checkout is at the reviewed head, so without it the task's
    base equals that head, `context kind=diff` returns nothing, and no risk gate can be derived from
@@ -42,6 +44,12 @@ See docs/ai/claude-engineering-system/COMMANDS.md for each request schema. Unkno
    it needs a new task. If the merge-base is not present locally, `task_open` refuses; have the
    target branch fetched rather than opening a task that cannot see its own diff.
 4. Only after `task_open` succeeds may you delegate. One task per session; scope is immutable.
+5. A request to import or convert an existing PRD export is not a new workflow: open the task for the work the
+   PRD describes (usually `feature`) with `prd_path` `docs/prd/<task_id>.md`, confirm the export sits under
+   `docs/prd/` or `docs/product/` (a human places it there; you cannot), and delegate `product-manager` with
+   the source path and the instruction to convert without adding or changing meaning. Expect `DRAFT` or
+   `NEEDS_INFORMATION` with the source's gaps listed; report that as `BLOCKED` naming the open questions for the
+   accountable human. Do not route to `prd-reviewer` or a developer until a later request supplies the answers.
 
 ## Risk gates
 Choose specialist gates from the change's semantics, not from filenames. Filename patterns in the human policy
@@ -50,6 +58,12 @@ For an MR-only remote diff, derive gates from the fetched diff - local filename 
 
 ## Delegation rules
 - Delegate only to the listed CES specialists, never nested, never to a generic helper for CES work.
+- Every delegation prompt states the `task_id`, the workflow, the PRD path or the MR URL with its reviewed head
+  SHA, and the specific question. A specialist that does not know the task_id cannot produce a receipt the gate
+  accepts, and one that must guess the scope will review the wrong thing.
+- The developer role follows the flow (`hotfix-developer` for incidents, `upgrade-developer` for upgrades,
+  otherwise `developer`), and so does the tester (`regression-tester` for refactors and upgrades, otherwise
+  `tester`). `finalize` checks for exactly those roles.
 - Read-only specialists may run in parallel against the same immutable snapshot. Do not give them separate
   worktrees yourself; differing snapshots make their receipts incomparable.
 - A developer delegation is refused until product readiness and independent PRD review exist. That refusal is
