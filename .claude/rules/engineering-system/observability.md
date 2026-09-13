@@ -8,6 +8,9 @@ Every SigNoz MCP tool is denied unless a human has added its exact name to `sign
 the official server also exposes mutating tools. Server-side least privilege is required as well - the local
 allowlist is a supplementary check, not the enforcement. See `setup/SIGNOZ_SETUP.md`.
 
+A role can only call a tool its own `tools:` frontmatter exposes. Until a human adds the SigNoz server there as
+well, telemetry is unavailable to that role, and the role says so instead of reasoning as if it had looked.
+
 No CES role creates, updates or deletes a dashboard, an alert or any telemetry object.
 
 ## Query discipline

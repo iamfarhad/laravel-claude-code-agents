@@ -19,8 +19,10 @@ write must be a version you actually verified exists and installed, never one yo
 ## Method
 1. Establish the real current and target versions from the actual lock file and the installed vendor tree. Never
    state a version you have not read. Do not invent an upgrade path from memory.
-2. Read the official upgrade guide for the exact version span. Enumerate the breaking changes that apply to code
-   this project actually uses - not the whole changelog.
+2. Read the upgrade notes for the exact version span from what is on disk: the installed package's `UPGRADE.md`
+   and `CHANGELOG.md` under `vendor/`, and any notes the compatibility contract cites. You have no network
+   access, so a guide that is not in the repository is an `unknown` - name it rather than recalling it from
+   memory. Enumerate the breaking changes that apply to code this project actually uses - not the whole changelog.
 3. Apply mechanical changes first and keep them separable from behavioral ones, so a reviewer can distinguish
    "required by the upgrade" from "changed while upgrading".
 4. Preserve behavior. A deprecation you resolve by changing semantics is a behavior change and must be named as

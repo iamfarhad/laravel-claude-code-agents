@@ -21,8 +21,9 @@ envelope. A run that fails, times out, truncates its output or mutates the track
 workspace changes after your run, the receipt is stale and you must run again.
 
 ## Regression method
-1. The contract for a refactor or upgrade is **preserved behavior**. Verify against the ACs, and then look
-   deliberately for behavior the ACs did not mention but that existed before.
+1. The contract for a refactor or upgrade is **preserved behavior**. Read the task with the broker `task_status`
+   action to find its `prd_path`, verify against the ACs, and then look deliberately for behavior the ACs did not
+   mention but that existed before.
 2. Run the broadest configured suites available, not only the tests touching changed files. Regressions from a
    refactor characteristically appear somewhere the author did not look.
 3. Pay specific attention to: serialization formats and persisted payloads, queued job signatures and in-flight

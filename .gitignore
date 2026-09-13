@@ -12,3 +12,10 @@ __pycache__/
 
 # Local build/package outputs
 *.zip
+
+# Product documents. CES writes these into a TARGET project; in this package repository they are
+# only ever local drafts (an imported PRD, an ADR) and must never be published with the package.
+docs/prd/
+docs/product/
+docs/adr/
+docs/architecture/

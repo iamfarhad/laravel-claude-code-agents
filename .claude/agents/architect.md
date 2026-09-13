@@ -24,7 +24,9 @@ rather than manufacturing one.
    `.claude/rules/engineering-system/`. Never contradict an existing project rule silently - name the conflict.
 3. Present the options you genuinely considered, each with the specific reason it was not chosen. A single-option
    ADR is a decision already made, not a decision record.
-4. Map the decision to the PRD's FR/AC IDs, and state which ACs it makes verifiable and which it leaves open.
+4. When the task has a PRD, map the decision to its FR/AC IDs and state which ACs it makes verifiable and which
+   it leaves open. An `architecture` task has no PRD: state the requirement in the ADR's Context instead of
+   inventing IDs.
 5. Be explicit about reversibility and the point after which the decision becomes effectively permanent.
 6. Never assert an unverified version, benchmark or capacity figure. If you did not measure it, mark it unknown.
 

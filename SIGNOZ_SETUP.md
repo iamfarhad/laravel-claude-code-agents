@@ -27,6 +27,27 @@ After inspecting your actual `/mcp` tool names, merge an explicit allowlist such
 ```
 Names above follow the official documented tools; actual client namespaces/version can differ. If mismatched, remain blocked until a human verifies and updates exact names. Do not allow generic executors or create/update/delete tools. The naming check is supplementary, not a replacement for reviewing tool behavior/permissions.
 
+## Expose the server to the roles that need it
+Every CES role declares an explicit `tools:` allowlist in its frontmatter, and Claude Code hides any MCP tool that
+allowlist does not name. Allowlisting a tool in `signoz_read_tools` is therefore necessary but not sufficient:
+until the role's frontmatter also lists the SigNoz server, the tool never reaches the agent and the role must
+report telemetry as unavailable. The roles written to use telemetry are `incident-investigator`, `qa-support`,
+`performance-reviewer`, `release-reviewer` and `tech-lead-reviewer`.
+
+Claude Code accepts the server-level form in agent frontmatter, so append it to the `tools:` line of each role you
+want to have evidence access:
+```yaml
+tools: Read, Grep, Glob, Bash, mcp__signoz__*
+```
+That entry is deliberately not shipped by default, and it is NOT a read-only grant by itself: what keeps the role
+read-only is the PreToolUse hook, which denies every SigNoz call whose exact name is not in `signoz_read_tools`
+and whose name does not look like a read/query tool. Keep both layers - never widen the config allowlist to make a
+tool "work". `php scripts/claude/checks/self-check.php` warns when a telemetry role has no SigNoz entry, and
+fails when a frontmatter names a specific SigNoz tool that the config does not allowlist.
+
+Frontmatter edits are package-owned files: a later `install.php --replace-existing` backs them up and replaces
+them, so re-apply the `tools:` change after an upgrade and re-run the self-check.
+
 ## Query discipline
 Use bounded time windows and service/environment/release/tenant filters. Record UTC plus original timezone, query parameters, trace references, sample sizes and sampling/retention caveats. Correlation does not establish cause. Avoid customer payloads and credentials in console/MR artifacts.
 For performance, compare equivalent load/data/version windows and include errors/throughput, not just favorable p95. For release, distinguish planned monitoring from observations actually made after human deployment.

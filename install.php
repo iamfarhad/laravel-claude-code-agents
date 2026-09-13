@@ -71,18 +71,21 @@ function writeInstall(string $target,string $relative,string $content,int $mode=
     } finally { if (is_file($tmp)) unlink($tmp); }
 }
 try {
-    $options=array_slice($argv,1); $flags=[]; $allowHosts=[];
+    $options=array_slice($argv,1); $flags=[]; $allowHosts=[]; $confluenceHosts=[];
+    $exactHost=function(string $value,string $flag): string {
+        $host=strtolower(trim($value));
+        if ($host==='' || strlen($host)>253 || str_contains($host,'*') || str_contains($host,':') || str_contains($host,'/') || str_contains($host,'\\')) throw new RuntimeException('Invalid '.$flag.' value; use only an exact hostname such as git.example.com.');
+        foreach (explode('.',$host) as $label) if ($label==='' || strlen($label)>63 || !preg_match('/\A[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\z/',$label)) throw new RuntimeException('Invalid '.$flag.' value; use only an exact hostname such as git.example.com.');
+        return $host;
+    };
     foreach ($options as $option) {
-        if (str_starts_with($option,'--allow-host=')) {
-            $host=strtolower(trim(substr($option,13)));
-            if ($host==='' || strlen($host)>253 || str_contains($host,'*') || str_contains($host,':') || str_contains($host,'/') || str_contains($host,'\\')) throw new RuntimeException('Invalid --allow-host value; use only an exact hostname such as git.example.com.');
-            foreach (explode('.',$host) as $label) if ($label==='' || strlen($label)>63 || !preg_match('/\A[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\z/',$label)) throw new RuntimeException('Invalid --allow-host value; use only an exact hostname such as git.example.com.');
-            $allowHosts[]=$host; continue;
-        }
-        if (!in_array($option,['--apply','--replace-existing','--set-default-agent','--force-default-agent','--add-gitignore','--add-git-exclude'],true)) throw new RuntimeException('Supported options: --apply --replace-existing --set-default-agent --force-default-agent --add-gitignore --add-git-exclude --allow-host=HOST');
+        if (str_starts_with($option,'--allow-host=')) { $allowHosts[]=$exactHost(substr($option,13),'--allow-host'); continue; }
+        if (str_starts_with($option,'--allow-confluence-host=')) { $confluenceHosts[]=$exactHost(substr($option,24),'--allow-confluence-host'); continue; }
+        if (!in_array($option,['--apply','--replace-existing','--set-default-agent','--force-default-agent','--add-gitignore','--add-git-exclude'],true)) throw new RuntimeException('Supported options: --apply --replace-existing --set-default-agent --force-default-agent --add-gitignore --add-git-exclude --allow-host=HOST --allow-confluence-host=HOST');
         $flags[]=$option;
     }
     $allowHosts=array_values(array_unique($allowHosts)); sort($allowHosts,SORT_STRING);
+    $confluenceHosts=array_values(array_unique($confluenceHosts)); sort($confluenceHosts,SORT_STRING);
     $apply=in_array('--apply',$flags,true); $replace=in_array('--replace-existing',$flags,true);
     $set=in_array('--set-default-agent',$flags,true); $force=in_array('--force-default-agent',$flags,true); $addGitignore=in_array('--add-gitignore',$flags,true); $addGitExclude=in_array('--add-git-exclude',$flags,true);
     if ($addGitignore && $addGitExclude) throw new RuntimeException('--add-gitignore and --add-git-exclude are alternatives; choose one. Use --add-gitignore for a team-shared installation, or --add-git-exclude to keep the tracked tree clean, which commit-bound MR review requires.');
@@ -126,24 +129,34 @@ try {
         if (is_dir($dst)) throw new RuntimeException('File destination is a directory: '.$rel);
         if (is_file($dst) && (($s=stat($dst))===false || $s['nlink']>1)) throw new RuntimeException('Hard-linked destination: '.$rel);
         if ($rel==='.claude/engineering-system/config.json') {
-            $configObject=is_file($dst)?installerJson($dst):json_decode($bytes,false,128,JSON_THROW_ON_ERROR);
+            $defaults=json_decode($bytes,false,128,JSON_THROW_ON_ERROR);
+            $configObject=is_file($dst)?installerJson($dst):$defaults;
             if (!$configObject instanceof stdClass || ($configObject->version ?? null)!==3) throw new RuntimeException('Existing config requires a manual v3 migration.');
-            if ($allowHosts) {
-                $existingHosts=$configObject->allowed_hosts ?? [];
-                if (!is_array($existingHosts) || !array_is_list($existingHosts)) throw new RuntimeException('config.allowed_hosts must be an array.');
-                foreach ($existingHosts as $host) if (!is_string($host)) throw new RuntimeException('config.allowed_hosts entries must be strings.');
-                $configObject->allowed_hosts=array_values(array_unique(array_merge($existingHosts,$allowHosts))); sort($configObject->allowed_hosts,SORT_STRING);
-                $bytes=json_encode($configObject,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR)."\n";
-                $hash=hash('sha256',$bytes); $newOwned[$rel]=$hash;
-                if (is_file($dst)) {
-                    $old=hash_file('sha256',$dst);
-                    if ($hash===$old) { $actions[]='UNCHANGED '.$rel.' (host already trusted)'; continue; }
-                    $actions[]='BACKUP + UPDATE '.$rel.' (explicit --allow-host)';
-                } else $actions[]='CREATE '.$rel.' (explicit --allow-host)';
-                $changes[$rel]=$bytes; continue;
-            } elseif (is_file($dst)) {
-                $actions[]='PRESERVE human configuration '.$rel; $newOwned[$rel]=hash_file('sha256',$dst); continue;
+            $reasons=[];
+            // Human values are never changed, but a policy key this package introduced after the existing
+            // config was written is added with its shipped default - otherwise an upgrade silently leaves the
+            // new capability unconfigurable (and undiscoverable) in every already-installed project.
+            $added=[];
+            foreach (get_object_vars($defaults) as $key=>$value) if (!property_exists($configObject,$key)) { $configObject->$key=$value; $added[]=$key; }
+            if ($added) $reasons[]='added missing policy keys: '.implode(', ',$added);
+            foreach ([['allowed_hosts',$allowHosts,'--allow-host'],['confluence_hosts',$confluenceHosts,'--allow-confluence-host']] as [$key,$hosts,$flag]) {
+                if (!$hosts) continue;
+                $existingHosts=$configObject->$key ?? [];
+                if (!is_array($existingHosts) || !array_is_list($existingHosts)) throw new RuntimeException('config.'.$key.' must be an array.');
+                foreach ($existingHosts as $host) if (!is_string($host)) throw new RuntimeException('config.'.$key.' entries must be strings.');
+                $mergedHosts=array_values(array_unique(array_merge($existingHosts,$hosts))); sort($mergedHosts,SORT_STRING);
+                if ($mergedHosts!==$existingHosts) { $configObject->$key=$mergedHosts; $reasons[]='explicit '.$flag; }
+                else $reasons[]=$flag.' host already trusted';
             }
+            $bytes=json_encode($configObject,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR)."\n";
+            $hash=hash('sha256',$bytes);
+            if (is_file($dst)) {
+                $old=hash_file('sha256',$dst);
+                $changed=$added || array_filter($reasons,fn($r)=>str_starts_with($r,'explicit '));
+                if (!$changed) { $actions[]=($reasons?'UNCHANGED ':'PRESERVE human configuration ').$rel.($reasons?' ('.implode('; ',$reasons).')':''); $newOwned[$rel]=$old; continue; }
+                $actions[]='BACKUP + UPDATE '.$rel.' ('.implode('; ',$reasons).')';
+            } else $actions[]='CREATE '.$rel.($reasons?' ('.implode('; ',$reasons).')':'');
+            $newOwned[$rel]=$hash; $changes[$rel]=$bytes; continue;
         }
         $hash=hash('sha256',$bytes); $newOwned[$rel]=$hash;
         if (is_file($dst)) {

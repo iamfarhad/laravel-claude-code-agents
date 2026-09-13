@@ -8,6 +8,9 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / '.claude/engineering-system/package-integrity.json'
 EXCLUDED_PARTS = {'runtime', 'backups', '__pycache__', '.git'}
 EXCLUDED_FILES = {'.claude/engineering-system/installed-files.json', '.claude/engineering-system/package-integrity.json', '.claude/settings.json', '.claude/settings.local.json'}
+# Project documents that CES roles write into a target repository. They are not package source: a PRD or ADR
+# drafted in this checkout must never be hashed into the shipped manifest.
+EXCLUDED_PREFIXES = ('docs/prd/', 'docs/product/', 'docs/adr/', 'docs/architecture/')
 
 def version() -> str:
     text=(ROOT/'scripts/claude/lib/common.php').read_text()
@@ -22,7 +25,7 @@ def files() -> dict[str,str]:
         if not p.is_file() or p.is_symlink():
             continue
         rel=p.relative_to(ROOT).as_posix()
-        if rel in EXCLUDED_FILES or any(part in EXCLUDED_PARTS for part in p.relative_to(ROOT).parts):
+        if rel in EXCLUDED_FILES or rel.startswith(EXCLUDED_PREFIXES) or any(part in EXCLUDED_PARTS for part in p.relative_to(ROOT).parts):
             continue
         if p.suffix in {'.pyc','.zip'}:
             continue

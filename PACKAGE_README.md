@@ -28,6 +28,7 @@ Run `/doctor` and the runtime smoke checklist before team use. Configure isolate
 Read AUDIT_REPORT.md, SECURITY_MODEL.md and TEST_REPORT.md for the tested scope and remaining limitations. No live Claude CLI, real GitLab/GitHub account or SigNoz instance was available in the audit environment.
 
 ## 3.2 setup helpers
-- `--allow-host=HOST` explicitly adds an exact MR/PR provider hostname to the human policy.
+- `--allow-host=HOST` explicitly adds an exact MR/PR provider hostname to the human policy; `--allow-confluence-host=HOST` does the same for the PRD importer's Confluence source.
+- Upgrading adds policy keys the existing config lacks, with their defaults, without changing any human value.
 - `--add-gitignore` appends only CES runtime/backups/installer-state exclusions and preserves existing entries.
 - Pre-task MR/config preflight is performed directly by the main orchestrator; specialists cannot be delegated before task_open.

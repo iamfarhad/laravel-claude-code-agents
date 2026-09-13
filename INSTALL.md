@@ -26,6 +26,8 @@ php /absolute/path/laravel-claude-code-agents/install.php --apply --allow-host=g
 ```
 This is an explicit human trust decision. Wildcards, schemes, paths and ports are rejected. Repeat `--allow-host=...` to trust more than one exact host.
 
+`--allow-host` is for MR/PR providers (GitLab, GitHub). To let the PRD importer read pages from your Confluence, trust that host separately with `--allow-confluence-host=docs.internal.example`; it lands in `confluence_hosts`, and a Confluence hostname placed in `allowed_hosts` does nothing.
+
 If you want the installer to append only the CES runtime exclusions to the existing `.gitignore`, add `--add-gitignore`. It preserves existing entries and backs up the file before changing it.
 
 `.gitignore` is a TRACKED file, so appending to it leaves the working tree dirty - and commit-bound MR review requires a clean tracked tree. If this checkout is used to review MRs, or CES is strictly personal, use `--add-git-exclude` instead: it writes the same exclusions to `.git/info/exclude`, which is local and never tracked, so it cannot block a review of the checkout it lives in. The two flags are alternatives and cannot be combined. `--add-git-exclude` needs a normal `.git` directory; in a linked worktree, add the lines to that worktree's own `info/exclude` by hand.
@@ -37,7 +39,7 @@ php /absolute/path/laravel-claude-code-agents/install.php --replace-existing
 php /absolute/path/laravel-claude-code-agents/install.php --apply --replace-existing
 ```
 Replacement is scoped to package-owned destinations, backed up under `.claude/engineering-system/backups/`. Project CLAUDE.md and README.md remain byte-for-byte untouched. `.gitignore` is untouched unless you explicitly pass `--add-gitignore`. Custom edits to package agents will be backed up, NOT semantically merged; compare and reapply appropriate custom role instructions manually.
-Existing human v3 config is preserved. Unsupported older config versions block for manual migration. Unrelated settings/hooks are preserved; known managed CES hook entries are replaced; the exact old unrestricted publisher allow-rule is removed only during explicit replacement.
+Existing human v3 config is preserved value for value. A policy key that this version introduced and the existing file lacks (for example `confluence_hosts`) is added with its shipped default, the file is backed up, and the plan says which keys were added; nothing a human wrote is changed. Unsupported older config versions block for manual migration. Unrelated settings/hooks are preserved; known managed CES hook entries are replaced; the exact old unrestricted publisher allow-rule is removed only during explicit replacement.
 Obsolete per-agent guard script paths remain fail-closed migration stubs. Agent frontmatter must be upgraded together with global hooks; mixing v2 agents and v3 scripts is unsupported.
 
 ## After installation

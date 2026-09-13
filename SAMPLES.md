@@ -203,6 +203,49 @@ Engine is <MySQL 8.0 / PostgreSQL 16 / ...>.
 *Have ready:* the engine and version. Locking cost differs per engine, and it will say so rather than assume.
 *Note:* it writes the migration. Running it is yours.
 
+### A PRD you already wrote somewhere else
+
+If your product contracts live in Confluence - in Persian or any other language - either export the page
+(storage-format XHTML or .docx; not PDF, whose text layer scrambles Persian) and save it under the repository, or
+give the page link once your admin has allowlisted the host in `confluence_hosts` and you have exported
+`CONFLUENCE_TOKEN` in your shell:
+
+```text
+Convert https://docs.digikala.com/spaces/B2BTP/pages/180753756/Cross-selling into the CES contract
+for task CROSS-1. Owner is Tina Kahrizi. Do not add, drop or reinterpret anything: categorise and
+standardise only, and list every gap in the source as an open question.
+```
+
+Two passes happen. First the product-manager runs the deterministic importer through the broker
+(`import_prd`): it maps Persian or English headings to the canonical sections (`نیازمندی‌های عملکردی` becomes
+`Functional Requirements`, `فرض/وقتی/آنگاه/تایید/نیازمندی` become `Given/When/Then/Verification/Requirement`,
+`FR-۰۱` becomes `FR-01`), turns HTML and Word tables into markdown tables - including an acceptance-criteria
+table whose columns are the Given/When/Then labels, one criterion per row - keeps bold group labels above their
+requirements, drops numbered container chapters that have no content of their own, and strips the RTL marks and
+non-breaking spaces that break matching. **Body text stays in Persian, digits included**; only the structure is
+normalised, and the result is always `Status: DRAFT`.
+
+Sections with no CES equivalent - solution options, the user flow, algorithm rules, FAQ, the approver table, the
+author/status block at the top - are kept verbatim under `Unmapped Source Sections` rather than filed under
+whatever section came before them, and readiness is refused while that section exists.
+
+Then the product-manager reads the draft next to the source and finishes the conversion by hand, under a rule the
+`prd-reviewer` later enforces by diffing the two: every source statement appears once, in its section, in its own
+words, and nothing is added. No invented precondition, verification, limit, non-goal or owner - a reasonable
+guess is still a change to what engineering will build. Whatever the source does not state stays listed under
+`Open Questions`, addressed to you, and the session ends `BLOCKED` on those questions rather than `READY`. Answer
+them in a follow-up request and the same task continues.
+
+You can also run the importer yourself, outside a session - it is a normal human/CI entrypoint:
+
+```bash
+php scripts/claude/tools/import-prd.php --in=docs/prd/sources/B2B-142.xhtml \
+  --id=B2B-142 --owner='Nadia Rahmani' --out=docs/prd/B2B-142.md
+```
+
+Recognition is extendable: `--print-map` prints the heading and label tables as JSON, and an edited copy passed
+as `--map=map.json` adds your team's own wording.
+
 ### Things worth adding to any prompt
 
 - The real accountable person, by name.
@@ -395,7 +438,8 @@ CES_REQUEST
 | `context` | all but the publisher | `status`, `head`, `log` or `diff` - no arbitrary git arguments |
 | `fetch_mr` | orchestrator, peer, tech lead, EM | MR metadata, exact head commit and the changed-file list (not the diff bodies) |
 | `validate_prd` | all but the publisher | Structurally validates the current task's PRD |
-| `run_check` | configured developer, tester, QA and performance roles | Runs a named preset from your policy and records a receipt |
+| `import_prd` | product manager | Converts an exported PRD placed under `docs/prd/` into a `DRAFT` at the task's PRD path; structure only |
+| `run_check` | developers, testers, QA support, incident investigator, performance reviewer | Runs a named preset from your policy (whose `roles` list must also name the caller) and records a receipt |
 | `publish_review` | publisher | Posts the stored review to the exact reviewed commit; `dry_run` posts nothing |
 | `finalize` | orchestrator | Re-checks every receipt, criterion, gate and publication before recommending completion |
 

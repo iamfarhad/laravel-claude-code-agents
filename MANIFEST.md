@@ -1,6 +1,6 @@
-# Package manifest - v3.2.5
+# Package manifest - v3.2.6
 
-107 regular source files; 20 agents; 14 workflow documents. No runtime sessions, API credentials, vendor packages or ZIP artifacts included.
+110 regular source files; 20 agents; 14 workflow documents. No runtime sessions, API credentials, vendor packages or ZIP artifacts included.
 
 - `.claude/agents/architect.md`
 - `.claude/agents/database-reviewer.md`
@@ -99,6 +99,7 @@
 - `scripts/claude/hooks/publisher-bash-guard.php`
 - `scripts/claude/hooks/readonly-bash-guard.php`
 - `scripts/claude/lib/common.php`
+- `scripts/claude/lib/confluence.php`
 - `scripts/claude/lib/contracts.php`
 - `scripts/claude/lib/mr.php`
 - `scripts/claude/lib/policy.php`
@@ -106,8 +107,10 @@
 - `scripts/claude/lib/workflow.php`
 - `scripts/claude/mr/publish-review.php`
 - `scripts/claude/tests/fixtures/check.php`
+- `scripts/claude/tests/fixtures/mock_confluence.py`
 - `scripts/claude/tests/fixtures/mock_provider.py`
 - `scripts/claude/tests/test_system.py`
+- `scripts/claude/tools/import-prd.php`
 - `tools/package_integrity.py`
 
 `package-integrity.json` hashes source files except itself and local/runtime exclusions. It is an accidental-corruption check, not a digital signature.

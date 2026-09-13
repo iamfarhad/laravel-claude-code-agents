@@ -87,6 +87,10 @@ before or after it. Statuses: `PASS`, `FAIL`, `BLOCKED`.
 }
 ```
 
+On an in-repo task (no `mr_url`) there is nothing to publish: put every finding in `findings`, each with a real
+`location`, and omit `reviewed_head_sha` and `publishable_comments`. On an MR task `publishable_comments` carries
+the findings the publisher may post and `findings` may stay empty.
+
 Paths, lines and IDs must come from actual inspection. Use `"line": null` (and optionally `"path": null`) for a
 finding you cannot anchor - it is preserved in the published summary. NITs stay in the console by default. Never
 supply your own deduplication fingerprint; it is ignored.

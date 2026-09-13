@@ -22,6 +22,9 @@ function validatePrd(string $path): array {
         $sections[$heading]=trim($s[2]);
     }
     foreach (PRD_SECTIONS as $h) if (trim($sections[$h] ?? '')==='') $errors[]='Missing or empty section: '.$h;
+    // Written by scripts/claude/tools/import-prd.php for source content it could not categorise. While it
+    // exists the conversion is unfinished: that text has not been placed, and must not be dropped either.
+    if (isset($sections['Unmapped Source Sections'])) $errors[]='Unmapped Source Sections is still present: imported content has not been categorised into the canonical sections.';
     if (!in_array(strtolower(trim($sections['Open Questions'] ?? '')),['none','none.'],true)) $errors[]='Open Questions must explicitly be None before readiness.';
     if (preg_match('/\b(TBD|TODO|PLACEHOLDER|FILL ME|UNKNOWN_PRODUCT_DECISION)\b/i',$plain)) $errors[]='Unresolved placeholder in PRD.';
     $requirements=[];

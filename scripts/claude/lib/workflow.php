@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace CES;
 require_once __DIR__ . '/contracts.php';
 require_once __DIR__ . '/process.php';
+require_once __DIR__ . '/confluence.php';
 
 const READ_ONLY_FLOWS = ['peer-review','tech-lead-review','engineering-manager-review','architecture','release'];
 const FLOWS = ['feature','production-bug','development-bug','peer-review','tech-lead-review','engineering-manager-review','incident','performance','security','refactor','upgrade','architecture','release','ci-failure'];
@@ -51,6 +52,49 @@ function openTask(string $session, array $request): array {
     $task=['task_id'=>$id,'workflow'=>$flow,'prd_path'=>$prd,'mr_url'=>$mr,'reviewed_head_sha'=>$sha,'risk_gates'=>array_values(array_unique($gates)),'base_sha'=>$base,'opened_at'=>gmdate('c'),'repair_attempts'=>0];
     saveTask($session,$task);
     return $task;
+}
+/**
+ * Deterministic first pass of a PRD import, run by the product-manager through the broker. It only
+ * runs the package's own importer on an export a human placed under docs/prd/ or docs/product/, and
+ * writes the DRAFT to the task's own prd_path. Structure only: the importer copies body text verbatim
+ * and can never emit readiness, so the product-manager's later editing - not this action - is what
+ * the prd-reviewer assesses.
+ */
+function importPrd(string $session,array $request): array {
+    $task=loadTask($session);
+    if ($task['prd_path']===null) throw new \RuntimeException('This task has no PRD; import applies to code-changing workflows only.');
+    if (isset($request['source'])===isset($request['url'])) throw new \RuntimeException('Pass exactly one of source (an export a human placed under docs/prd/ or docs/product/) or url (a Confluence page on an allowlisted host).');
+    $fetched=null;
+    if (isset($request['url'])) {
+        // The page is saved as the task's own source file so the prd-reviewer can diff draft against source.
+        $fetched=fetchConfluencePage(requireText($request['url'],'url',1000));
+        $rel='docs/prd/sources/'.$task['task_id'].'.xhtml'; $source=safePath($rel);
+        if (!is_dir(dirname($source)) && !mkdir(dirname($source),0755,true) && !is_dir(dirname($source))) throw new \RuntimeException('Cannot create docs/prd/sources.');
+        atomicWrite($source,$fetched['xhtml'],0644);
+    } else $source=safePath(requireText($request['source'],'source',1000),true);
+    if (!is_file($source)) throw new \RuntimeException('source must be a file.');
+    if (!within($source,root().'/docs/prd') && !within($source,root().'/docs/product')) throw new \RuntimeException('Place the export under docs/prd/ or docs/product/ (for example docs/prd/sources/<task_id>.xhtml) - a human step - before importing it.');
+    if (!preg_match('/\.(?:xhtml|html|htm|md|markdown|txt|docx)\z/i',$source)) throw new \RuntimeException('Unsupported export type; use Confluence storage XHTML/HTML, Markdown/text or .docx.');
+    if (filesize($source)>4194304) throw new \RuntimeException('Export exceeds 4 MiB; split it.');
+    $target=safePath($task['prd_path']);
+    if ($source===$target) throw new \RuntimeException('The source and the task PRD are the same file.');
+    if (isset($request['overwrite']) && !is_bool($request['overwrite'])) throw new \RuntimeException('overwrite must be boolean.');
+    if (is_file($target) && ($request['overwrite'] ?? false)!==true) throw new \RuntimeException('The task PRD already exists at '.$task['prd_path'].'. Pass "overwrite": true only to replace it with a fresh DRAFT; every edit in the current file is lost.');
+    $argv=[PHP_BINARY,root().'/scripts/claude/tools/import-prd.php','--in='.$source,'--id='.$task['task_id'],'--out='.$task['prd_path']];
+    foreach (['owner','title'] as $field) {
+        if (!isset($request[$field])) continue;
+        $value=$request[$field];
+        if (!is_string($value) || trim($value)==='' || strlen($value)>300 || preg_match('/[\r\n\x00]/',$value)) throw new \RuntimeException($field.' must be a short single-line string.');
+        $argv[]='--'.$field.'='.trim($value);
+    }
+    $r=process($argv,'',60,4194304,['PATH'=>(string)getenv('PATH'),'LANG'=>'C.UTF-8']);
+    $report=null;
+    if ($r['exit_code']===0 && !$r['truncated'] && !$r['timed_out']) { try { $report=jsonObject(trim($r['stderr'])); } catch (\Throwable $e) { $report=null; } }
+    if ($report===null) throw new \RuntimeException('Import failed: '.redact(trim(substr($r['stderr'],0,1200))));
+    return ['status'=>'IMPORTED','prd_path'=>$task['prd_path'],'prd_status'=>'DRAFT','source'=>relative($source),
+        'fetched'=>$fetched===null?null:['source_url'=>$fetched['source_url'],'page_id'=>$fetched['page_id'],'title'=>$fetched['title'],'version'=>$fetched['version'],'space'=>$fetched['space']],
+        'workspace_digest'=>workspaceDigest(),'report'=>$report,
+        'next'=>'Read the DRAFT beside the source. Only categorise and standardise: every source statement appears once, in its section, in its own words; nothing is added, softened or inferred. Each Open Questions line is a gap in the source for the accountable human, so the honest status after your pass is DRAFT or NEEDS_INFORMATION unless the source itself was complete.'];
 }
 function receiptPath(string $session,string $role): string {
     if (!in_array($role,ROLES,true)) throw new \RuntimeException('Unknown role.');

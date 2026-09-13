@@ -4,7 +4,7 @@ Run: python3 scripts/claude/tests/test_system.py
 Optional: --json /absolute/path/report.json --package /path/to/package
 """
 from __future__ import annotations
-import argparse, copy, hashlib, json, os, shlex, shutil, subprocess, sys, tempfile, time, unittest
+import argparse, copy, hashlib, html, json, os, re, shlex, shutil, subprocess, sys, tempfile, time, unittest
 from pathlib import Path
 P=Path(__file__).resolve().parents[3]
 PHP=shutil.which('php')
@@ -12,8 +12,9 @@ REPORT=None
 
 def run(argv,cwd=None,data=None,env=None,timeout=25):
  return subprocess.run([str(x) for x in argv],cwd=cwd,input=None if data is None else (data if isinstance(data,str) else json.dumps(data)),text=True,capture_output=True,env=env,timeout=timeout)
+PRD_SECTIONS=['Problem Statement','Context / Evidence','Goals','Non-Goals','Users / Actors','Functional Requirements','Acceptance Criteria','Failure / Negative Behavior','Non-Functional Requirements','Observability Requirements','Dependencies','Rollout / Migration Expectations','Success Metrics','Risks','Open Questions','Out of Scope']
 def valid_prd():
- sections=['Problem Statement','Context / Evidence','Goals','Non-Goals','Users / Actors','Functional Requirements','Acceptance Criteria','Failure / Negative Behavior','Non-Functional Requirements','Observability Requirements','Dependencies','Rollout / Migration Expectations','Success Metrics','Risks','Open Questions','Out of Scope']
+ sections=PRD_SECTIONS
  text='# Controlled test PRD\nStatus: READY_FOR_ENGINEERING\nOwner: Test fixture\n\n'
  for sec in sections:
   text+='## '+sec+'\n'
@@ -31,7 +32,7 @@ class Fixture(unittest.TestCase):
   (self.repo/'docs/prd').mkdir(parents=True,exist_ok=True); (self.repo/'docs/prd/T-1.md').write_text(valid_prd())
   (self.repo/'.gitignore').write_text('.claude/engineering-system/runtime/\n.claude/engineering-system/backups/\n__pycache__/\n')
   self.conf=json.loads((self.repo/'.claude/engineering-system/config.json').read_text())
-  self.conf.update({'allowed_hosts':['github.test','gitlab.test'],'execution_isolated':True,'checks':{m:{'trusted':True,'kind':'test','roles':['tester','regression-tester','developer','qa-support','performance-reviewer'],'argv':[PHP,'scripts/claude/tests/fixtures/check.php',m],'timeout_seconds':1 if m=='timeout' else 10,'env':{'APP_ENV':'testing'}} for m in ['pass','fail','timeout','mutate','noisy','env']}})
+  self.conf.update({'allowed_hosts':['github.test','gitlab.test'],'execution_isolated':True,'checks':{m:{'trusted':True,'kind':'test','roles':['tester','regression-tester','developer','qa-support','incident-investigator','performance-reviewer'],'argv':[PHP,'scripts/claude/tests/fixtures/check.php',m],'timeout_seconds':1 if m=='timeout' else 10,'env':{'APP_ENV':'testing'}} for m in ['pass','fail','timeout','mutate','noisy','env']}})
   self.saveconf(); self.git('init','-q'); self.git('config','user.email','test@example.invalid'); self.git('config','user.name','CES Test'); self.git('add','.'); self.git('commit','-qm','fixture base')
   self.sha=self.git('rev-parse','HEAD').stdout.strip(); self.session='test-session'; self.counter=0
  def tearDown(self): self.tmp.cleanup()
@@ -151,6 +152,21 @@ class GuardTests(Fixture):
   r=self.hook('engineering-orchestrator','Agent',{'subagent_type':'peer-reviewer'}); self.assertEqual(r.returncode,2); self.assertIn('Pre-task MR/config preflight',r.stderr)
  def test_developer_delegation_requires_product_gate(self):
   self.open(); self.assertEqual(self.hook('engineering-orchestrator','Agent',{'subagent_type':'developer'}).returncode,2)
+ def self_check(self): return run([PHP,'scripts/claude/checks/self-check.php'],self.repo,env=self.env)
+ def test_self_check_baseline_passes_and_reports_unreachable_telemetry(self):
+  r=self.self_check(); self.assertEqual(r.returncode,0,r.stdout); d=json.loads(r.stdout); self.assertEqual(d['errors'],[])
+  self.assertTrue(any('incident-investigator' in w and 'SigNoz' in w for w in d['warnings']),d['warnings'])
+ def test_self_check_rejects_prompt_demonstrating_a_denied_broker_action(self):
+  p=self.repo/'.claude/agents/security-reviewer.md'; p.write_text(p.read_text()+"\n```bash\nphp scripts/claude/bin/ces.php <<'CES_REQUEST'\n{\"action\":\"run_check\",\"name\":\"unit\"}\nCES_REQUEST\n```\n")
+  r=self.self_check(); self.assertEqual(r.returncode,2); self.assertIn("security-reviewer demonstrates broker action 'run_check'",r.stdout)
+ def test_self_check_binds_frontmatter_mcp_tools_to_the_human_allowlist(self):
+  p=self.repo/'.claude/agents/qa-support.md'; original=p.read_text(); self.assertIn('tools: Read, Grep, Glob, Bash\n',original)
+  p.write_text(original.replace('tools: Read, Grep, Glob, Bash\n','tools: Read, Grep, Glob, Bash, mcp__signoz__signoz_search_logs\n',1))
+  r=self.self_check(); self.assertEqual(r.returncode,2); self.assertIn('not allowlisted in config signoz_read_tools',r.stdout)
+  self.conf['signoz_read_tools']=['mcp__signoz__signoz_search_logs']; self.saveconf(); self.assertEqual(self.self_check().returncode,0)
+  p.write_text(original.replace('tools: Read, Grep, Glob, Bash\n','tools: Read, Grep, Glob, Bash, mcp__signoz__*\n',1)); r=self.self_check(); self.assertEqual(r.returncode,0,r.stdout)
+  self.assertFalse(any('qa-support may use SigNoz' in w for w in json.loads(r.stdout)['warnings']))
+  p.write_text(original.replace('tools: Read, Grep, Glob, Bash\n','tools: Read, Grep, Glob, Bash, mcp__other__query\n',1)); r=self.self_check(); self.assertEqual(r.returncode,2); self.assertIn('only SigNoz read tools',r.stdout)
  def test_disabled_checks_fail_closed(self):
   self.open(); self.conf['execution_isolated']=False; self.saveconf(); self.assertEqual(self.broker('tester',{'action':'run_check','name':'pass'}).returncode,2)
  def test_broker_rejects_direct_cli(self): self.assertEqual(run([PHP,'scripts/claude/bin/ces.php'],self.repo,env=self.env).returncode,2)
@@ -170,6 +186,304 @@ class PrdTests(Fixture):
  def test_unresolved_question_rejected(self): self.assertEqual(self.validate(valid_prd().replace('## Open Questions\nNone','## Open Questions\nWho owns this?'))['status'],'FAIL')
  def test_fenced_example_cannot_satisfy_readiness(self): self.assertEqual(self.validate('```markdown\n'+valid_prd()+'\n```\n')['status'],'FAIL')
  def test_placeholders_rejected(self): self.assertEqual(self.validate(valid_prd().replace('Owner: Test fixture','Owner: TODO'))['status'],'FAIL')
+
+FA_EXPORT="""<h1>محدودیت نرخ درخواست</h1>
+<h2>‏شرح مسئله</h2><p>یک تنانت می‌تواند سرویس را اشباع کند، با ۴۲۰۰۰ درخواست.</p>
+<h2>زمینه و شواهد</h2><p>لاگ های پروداکشن.</p>
+<h2>اهداف</h2><p>اعمال محدودیت.</p>
+<h2>غیر اهداف</h2><p>محدودیت به ازای کاربر.</p>
+<h2>کاربران و نقش ها</h2><p>یکپارچه سازی های API.</p>
+<h2>نیازمندی‌های عملکردی</h2>
+<ul><li>FR-۰۱: درخواست زیر سقف پاسخ می‌گیرد.</li>
+<li>FR-۰۲: درخواست بیش از سقف رد می‌شود.</li></ul>
+<h2>معیارهای پذیرش</h2>
+<h3>AC-۰۱: پاسخ عادی</h3>
+<p>‏فرض: تنانتی با سقف ۵ درخواست
+در دقیقه</p>
+<p>وقتی:&nbsp;درخواست دیگری می‌رسد</p>
+<p>آنگاه: پاسخ ۲۰۱ است</p>
+<p>تایید: tests/Feature/LimitTest.php - it_allows_under_limit</p>
+<p>نیازمندی: FR-۰۱</p>
+<h3>AC-۰۲: رد درخواست</h3>
+<p>فرض: سقف تمام شده است</p>
+<p>وقتی: درخواست دیگری می‌رسد</p>
+<p>آنگاه: پاسخ ۴۲۹ است</p>
+<p>الزام: FR-۰۲</p>
+<h2>رفتار خطا</h2><p>بدون احراز هویت رد می‌شود.</p>
+<h2>نیازمندی‌های غیرعملکردی</h2><p>یک رفت و برگشت.</p>
+<h2>پایش</h2><p>فیلد tenant_id.</p>
+<h2>وابستگی‌ها</h2><p>از composer.lock خوانده شود.</p>
+<h2>برنامه انتشار</h2><p>ابتدا با سقف بالا.</p>
+<h2>معیارهای موفقیت</h2><p>عبور نکردن از سقف.</p>
+<h2>ریسک‌ها</h2><p>سقف پایین.</p>
+<h2>یادداشت جلسه</h2><p>جایی در قالب PRD ندارد.</p>
+<h2>خارج از محدوده</h2><p>نمایش سهمیه.</p>
+"""
+
+CONFLUENCE_EXPORT="""<h1>API Management برای پارتنرها</h1>
+<h2>1. Executive Summary</h2><p>هدف این محصول، در دسترس قرار دادن API است.</p>
+<h2>2. Market Requirements Document (MRD)</h2>
+<h3>2.1 Customer Needs &amp; Insights</h3><ul><li>نیاز به درگیر شدن سرمایه</li><li>محدودیت انبارداری</li></ul>
+<h3>2.2 Competitors</h3><ul><li>همراه تل</li><li>نامی نت</li></ul>
+<h2>3. Business Goals</h2><ul><li>رشد فروش از طریق پارتنرشیپ</li></ul>
+<h2>4. Product Requirements (PRD)</h2>
+<h3>4.1 Personas</h3><ul><li>شرکت ها و فروشندگان B2B</li></ul>
+<h3>4.2 Functional Requirements</h3>
+<p><strong>Configs and Settings</strong></p><ul><li>امکان روشن کردن تاگل برای مشتریان</li><li>امکان مشخص کردن انبار برای هر مشتری</li></ul>
+<p><strong>Place Order</strong></p><ul><li>ثبت سفارش مستقیم بر اساس اطلاعات محصول</li></ul>
+<h3>4.3 Acceptance Criteria</h3>
+<table><tbody><tr><th>سناریو</th><th>فرض</th><th>وقتی</th><th>آنگاه</th><th>تایید</th></tr>
+<tr><td>تاگل روشن</td><td>مشتری با تاگل روشن</td><td>پروفایل باز می‌شود</td><td>API Management نمایش داده می‌شود</td><td>tests/Feature/ProfileTest.php - it_shows_api_management</td></tr>
+<tr><td>ثبت سفارش بدون موجودی</td><td>کالا موجودی ندارد</td><td>سفارش ثبت می‌شود</td><td>خطای ۴۲۲ با کد OUT_OF_STOCK</td><td></td></tr></tbody></table>
+<h3>4.4 NFRs</h3><ul><li>P95 latency &lt; 500ms</li></ul>
+<h2>5. Timeline &amp; Milestones</h2>
+<table><tbody><tr><td><p>Milestone</p></td><td><p>Duration</p></td><td><p>Responsible</p></td></tr><tr><td><p>Auth &amp; Token</p></td><td><p>10 days</p></td><td><p>Backend</p></td></tr></tbody></table>
+<h2>6. اینتگریشن ایرانسل</h2>
+<h2>7. Success Metrics</h2><ul><li>حداقل 2 پارتنر</li></ul>
+<h2>8. Risks &amp; Mitigation Strategies</h2>
+<table><tbody><tr><td>Risk</td><td>Mitigation</td></tr><tr><td>Overselling</td><td>Validation لحظه‌ای موجودی</td></tr></tbody></table>
+"""
+
+CROSS_EXPORT="""<h1>Cross-selling</h1>
+<table><tbody><tr><th>نگارنده</th><td>تینا کهریزی</td></tr><tr><th>وضعیت</th><td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter><ac:parameter ac:name="title">COMPLETED</ac:parameter></ac:structured-macro></td></tr><tr><th>لینک</th><td><ac:link><ri:page ri:content-title="Algo"/><ac:plain-text-link-body><![CDATA[جزئیات الگوریتم]]></ac:plain-text-link-body></ac:link></td></tr></tbody></table>
+<h2>1 لیست ذینفعان مرتبط (Stack holders)</h2><table><tbody><tr><th>نام</th><th>تیم</th></tr><tr><td>امیرحسین قاسمی</td><td>گروث</td></tr></tbody></table>
+<h2>2 توصیف مساله (Problem Definition)</h2><ul><li>در حال حاضر فروش الکترونیک وابستگی بالایی به کتگوری موبایل دارد.</li></ul>
+<h2>3 داده‌های پشتیبان (Supportive Data)</h2><ul><li>سهم موبایل از فروش: ٪۷۷</li></ul><table><tbody><tr><th>Category Mix</th><th>AOV</th></tr><tr><td>MO+AC</td><td>6,751,291,498</td></tr></tbody></table>
+<h2>4 متریک ها و اهداف (Metrics &amp; Goals)</h2><ul><li>هدف اصلی این initiative افزایش نرخ attachment است.</li></ul>
+<h2>5 راه حل های پیشنهادی (Suggested Solution)</h2><h3>5.4 راه حل نهایی (Final Solution)</h3><p>راه حل نهایی فاز اول، پیاده‌سازی <strong>Cart Inline Recommender</strong> است.</p>
+<h2>6 طراحی اولیه و فلو کاربر (User Flow and Prototype)</h2><ul><li>کاربر وارد Cart میشود.</li></ul>
+<h3>6.1 User Stories</h3><p><strong>فاز اول:</strong></p><p>1- به عنوان کاربر می خواهم با ورود به صفحه کارت، ریکامندور اکسسوری را مشاهده کنم.</p>
+<ul><li>در صورتی که کاربر وارد صفحه کارت شد کروسل نمایش داده می شود.<ul><li>موبایل</li><li>هدفون</li></ul></li><li>در این کروسل حداقل 4 محصول و حداکثر 16 محصول نمایش داده می شود.</li></ul>
+<h3>6.2 Rule های الگوریتم:</h3><h3>6.3 ورودیهای اصلی سیستم</h3><p>برای تولید کروسل، سیستم باید ورودیهای زیر را دریافت یا محاسبه کند:</p><h4>6.3.1 برند کالای اصلی</h4><ul><li>سامسونگ</li></ul>
+<h2>8 رودمپ و ایتریشن ها (Roadmap and Iteration)</h2><h3>Phase 1: Cart Recommender</h3><p>پیاده‌سازی recommender در صفحه Cart.</p>
+<h2>9 محدودیتها و ریسکها (Constraints and Risks)</h2><h3>9.1 ریسک افزایش friction در funnel</h3><p>هرگونه touchpoint مزاحم میتواند ریسک ریزش را بیشتر کند.</p>
+<h2>10 توضیحات فنی (Technical Requirements)</h2><h3>10.1 نیازمندیهای تکنیکال اولیه</h3><ul><li>تشخیص وجود کالای MO و AC در cart</li></ul><h3>10.2 Eventهای پیشنهادی</h3><ul><li>لاگ نمایش recommender ها cart-recommender-attachment-view</li></ul>
+<h2>11 نیازمندی ها از سایر تیمها ( Requirements from Other teams)</h2><table><tbody><tr><th>نیازمندی</th><th>ددلاین</th></tr><tr><td>تعریف Must DKPC ها</td><td>done</td></tr></tbody></table>
+<h2>12 سوالات پرتکرار (FAQ)</h2><h3>12.1 چرا؟</h3><p>هدف از نمایش Recommender افزایش فروش اکسسوری است.</p>
+<h2>13 تاییدکنندگان (Approvers)</h2><table><tbody><tr><th>نام</th><th>وضعیت</th></tr><tr><td>یوسف محمدجانی</td><td>بررسی نشده</td></tr></tbody></table>
+"""
+
+class PrdImportTests(Fixture):
+ def importer(self,*args):
+  return run([PHP,'scripts/claude/tools/import-prd.php',*args],self.repo,env=self.env)
+ def imported(self,source=None,*args):
+  (self.repo/'export.xhtml').write_text(source or FA_EXPORT)
+  r=self.importer('--in=export.xhtml','--id=FA-1','--owner=مالک واقعی',*args)
+  self.assertEqual(r.returncode,0,r.stderr); return r.stdout,json.loads(r.stderr)
+ def test_persian_headings_map_to_canonical_sections(self):
+  out,report=self.imported()
+  for section in PRD_SECTIONS: self.assertIn('## '+section+'\n',out)
+  self.assertEqual(report['functional_requirements'],2); self.assertEqual(report['acceptance_criteria'],2)
+  self.assertEqual([u['heading'] for u in report['unmapped_headings']],['یادداشت جلسه'])
+ def test_identifiers_become_ascii_but_body_digits_stay_persian(self):
+  out,report=self.imported()
+  self.assertIn('- FR-01:',out); self.assertIn('- FR-02:',out); self.assertIn('### AC-01:',out)
+  self.assertNotIn('FR-۰۱',out); self.assertIn('پاسخ ۲۰۱ است',out)
+  self.assertGreater(report['normalized']['persian_digits_folded'],0)
+ def test_persian_labels_become_ascii_given_when_then(self):
+  out,unused=self.imported()
+  for label in ['Given:','When:','Then:','Verification:','Requirement: FR-01']: self.assertIn(label,out)
+ def test_wrapped_label_value_is_joined_into_one_line(self):
+  out,report=self.imported()
+  self.assertGreaterEqual(report['normalized']['label_lines_joined'],1)
+  self.assertIn('در دقیقه',[l for l in out.splitlines() if l.startswith('Given:')][0])
+ def test_import_can_never_claim_readiness(self):
+  out,unused=self.imported(FA_EXPORT+'<p>Status: READY_FOR_ENGINEERING</p>')
+  self.assertEqual([l for l in out.splitlines() if l.startswith('Status:')],['Status: DRAFT'])
+ def test_imported_draft_fails_until_a_human_completes_it(self):
+  out,report=self.imported()
+  self.assertIn('AC-02: the source states no Verification value. The accountable human must supply it; do not infer one.',report['unresolved'])
+  first=self.validate(out)
+  self.assertEqual(first['status'],'FAIL'); self.assertIn('AC-02 requires non-empty Verification:',first['errors'])
+  completed=out.replace('Status: DRAFT','Status: READY_FOR_ENGINEERING').replace('Requirement: FR-02','Verification: tests/Feature/LimitTest.php - it_rejects_over_limit\nRequirement: FR-02')
+  completed=re.sub(r'## Open Questions\n.*?\n\n## Out of Scope','## Open Questions\nNone\n\n## Out of Scope',completed,flags=re.S)
+  self.assertIn('## Unmapped Source Sections',completed); self.assertIn('Unmapped Source Sections is still present: imported content has not been categorised into the canonical sections.',self.validate(completed)['errors'])
+  completed=re.sub(r'\n## Unmapped Source Sections\n.*\Z','\n',completed,flags=re.S)
+  second=self.validate(completed)
+  self.assertEqual(second['status'],'PASS',second['errors']); self.assertEqual(second['ac_ids'],['AC-01','AC-02'])
+ def test_out_refuses_paths_outside_product_documents(self):
+  (self.repo/'export.xhtml').write_text(FA_EXPORT)
+  for target in ['app/Imported.md','.claude/agents/x.md','docs/prd/../../escape.md','docs/prd/FA-1.txt']:
+   with self.subTest(target=target): self.assertEqual(self.importer('--in=export.xhtml','--id=FA-1','--out='+target).returncode,2)
+ def test_out_writes_under_docs_prd(self):
+  (self.repo/'export.xhtml').write_text(FA_EXPORT)
+  r=self.importer('--in=export.xhtml','--id=FA-1','--out=docs/prd/FA-1.md')
+  self.assertEqual(r.returncode,0,r.stderr); self.assertIn('## Acceptance Criteria',(self.repo/'docs/prd/FA-1.md').read_text())
+ def test_invalid_input_is_rejected(self):
+  (self.repo/'export.xhtml').write_text(FA_EXPORT); (self.repo/'bad.xhtml').write_bytes(b'\xff\xfe not utf8')
+  self.assertEqual(self.importer('--in=bad.xhtml','--id=FA-1').returncode,2)
+  self.assertEqual(self.importer('--in=missing.xhtml','--id=FA-1').returncode,2)
+  self.assertEqual(self.importer('--in=export.xhtml','--id=../escape').returncode,2)
+  self.assertEqual(self.importer('--in=export.xhtml').returncode,2)
+ def test_print_map_exposes_every_canonical_section(self):
+  r=self.importer('--print-map'); self.assertEqual(r.returncode,0,r.stderr)
+  self.assertEqual(sorted(json.loads(r.stdout)['sections'].keys()),sorted(PRD_SECTIONS))
+ def test_confluence_shape_numbered_headings_tables_and_container_chapters(self):
+  out,report=self.imported(CONFLUENCE_EXPORT)
+  self.assertTrue(out.startswith('# FA-1 - API Management برای پارتنرها\n'),out.splitlines()[0])
+  self.assertEqual(report['title'],'API Management برای پارتنرها')
+  self.assertIn('| Milestone | Duration | Responsible |\n|---|---|---|\n| Auth & Token | 10 days | Backend |',out)
+  self.assertIn('| Risk | Mitigation |\n|---|---|\n| Overselling | Validation لحظه‌ای موجودی |',out)
+  self.assertNotIn('**4. Product Requirements (PRD)**',out); self.assertNotIn('**6. اینتگریشن ایرانسل**',out)
+  for empty in ['4. Product Requirements (PRD)','6. اینتگریشن ایرانسل']:
+   self.assertIn("Source section '"+empty+"' is empty in the source - it has a heading and no content, so nothing was imported from it. Confirm with the accountable human whether it was left unwritten.",report['unresolved'])
+  self.assertIn('**2.2 Competitors**\n- همراه تل\n- نامی نت',out)
+  self.assertEqual(sorted(u['heading'] for u in report['unmapped_headings']),sorted(['1. Executive Summary','2. Market Requirements Document (MRD)','2.1 Customer Needs & Insights','2.2 Competitors','4. Product Requirements (PRD)','6. اینتگریشن ایرانسل']))
+  # "Executive Summary" and "MRD" name whole chapters, not one canonical section, so they are handed to the
+  # product-manager verbatim rather than filed under Problem Statement and Context / Evidence by guesswork.
+  self.assertEqual(report['unmapped_sections_kept'],['1. Executive Summary','2. Market Requirements Document (MRD)'])
+  self.assertIn('**Configs and Settings**\n- FR-01: امکان روشن کردن تاگل برای مشتریان\n- FR-02: امکان مشخص کردن انبار برای هر مشتری\n\n**Place Order**\n- FR-03:',out)
+  self.assertIn('P95 latency < 500ms',out)
+ def test_persian_acceptance_table_becomes_ac_blocks_without_inventing_fields(self):
+  out,report=self.imported(CONFLUENCE_EXPORT)
+  self.assertEqual(report['acceptance_criteria'],2)
+  self.assertIn('### AC-01: تاگل روشن\nGiven: مشتری با تاگل روشن\nWhen: پروفایل باز می‌شود\nThen: API Management نمایش داده می‌شود\nVerification: tests/Feature/ProfileTest.php - it_shows_api_management\n',out)
+  self.assertIn('### AC-02: ثبت سفارش بدون موجودی\nGiven: کالا موجودی ندارد\nWhen: سفارش ثبت می‌شود\nThen: خطای ۴۲۲ با کد OUT_OF_STOCK\n\n',out)
+  self.assertIn('AC-02: the source states no Verification value. The accountable human must supply it; do not infer one.',report['unresolved'])
+  self.assertTrue(any(u.startswith("Section 'Non-Goals' is empty in the source") for u in report['unresolved']),report['unresolved'])
+  self.assertTrue(all('product-manager must' not in u for u in report['unresolved']),report['unresolved'])
+ def test_requirements_table_takes_the_requirement_column(self):
+  src='<h1>T</h1><h2>Problem</h2><p>x</p><h2>Functional Requirements</h2><table><tr><th>ID</th><th>شرح نیازمندی</th><th>Priority</th></tr><tr><td>FR-۰۵</td><td>دریافت لیست کالاها</td><td>High</td></tr><tr><td>FR-۰۶</td><td>دریافت ورینت ها</td><td>Low</td></tr></table><h2>Acceptance Criteria</h2><h3>AC-1</h3><p>Given: a</p><p>When: b</p><p>Then: c</p><p>Verification: d</p><p>Requirement: FR-۰۶</p>'
+  out,report=self.imported(src)
+  self.assertIn('- FR-01: دریافت لیست کالاها\n- FR-02: دریافت ورینت ها\n',out); self.assertNotIn('High',out.split('## Functional Requirements')[1].split('## Acceptance')[0])
+  self.assertIn('Requirement: FR-02',out); self.assertEqual(report['functional_requirements'],2)
+ def test_bilingual_numbered_headings_map_and_unknown_sections_are_kept_not_misfiled(self):
+  out,report=self.imported(CROSS_EXPORT)
+  self.assertTrue(out.startswith('# FA-1 - Cross-selling\n'))
+  by={m['heading']:m['section'] for m in report['heading_matches']}
+  self.assertEqual(by['2 توصیف مساله (Problem Definition)'],'Problem Statement'); self.assertEqual(by['3 داده\u200cهای پشتیبان (Supportive Data)'],'Context / Evidence')
+  self.assertEqual(by['6.1 User Stories'],'Functional Requirements')
+  # A chapter that names two canonical sections is never filed under one of them by the alias table.
+  self.assertNotIn('4 متریک ها و اهداف (Metrics & Goals)',by); self.assertIn('4 متریک ها و اهداف (Metrics & Goals)',report['unmapped_sections_kept'])
+  self.assertEqual(by['8 رودمپ و ایتریشن ها (Roadmap and Iteration)'],'Rollout / Migration Expectations'); self.assertEqual(by['9 محدودیتها و ریسکها (Constraints and Risks)'],'Risks')
+  self.assertEqual(by['10.2 Eventهای پیشنهادی'],'Observability Requirements'); self.assertEqual(by['11 نیازمندی ها از سایر تیمها ( Requirements from Other teams)'],'Dependencies')
+  section=lambda name: out.split('## '+name+'\n',1)[1].split('\n## ',1)[0]
+  self.assertIn('| Category Mix | AOV |',section('Context / Evidence')); self.assertIn('cart-recommender-attachment-view',section('Observability Requirements'))
+  self.assertIn('| تعریف Must DKPC ها | done |',section('Dependencies')); self.assertIn('**Phase 1: Cart Recommender**\nپیاده‌سازی recommender در صفحه Cart.',section('Rollout / Migration Expectations'))
+  self.assertNotIn('Recommender افزایش فروش',section('Risks')); self.assertEqual(section('Goals').strip(),'')
+  kept=section('Unmapped Source Sections')
+  for heading in ['(document preamble)','1 لیست ذینفعان مرتبط (Stack holders)','4 متریک ها و اهداف (Metrics & Goals)','5 راه حل های پیشنهادی (Suggested Solution)','6 طراحی اولیه و فلو کاربر (User Flow and Prototype)','6.3 ورودیهای اصلی سیستم','10 توضیحات فنی (Technical Requirements)','12 سوالات پرتکرار (FAQ)','13 تاییدکنندگان (Approvers)']:
+   self.assertIn('**'+heading+'**',kept,heading); self.assertIn(heading,report['unmapped_sections_kept'])
+  self.assertIn('| وضعیت | COMPLETED |',kept); self.assertIn('جزئیات الگوریتم',kept); self.assertIn('| یوسف محمدجانی | بررسی نشده |',kept)
+  self.assertIn('Cart Inline Recommender',kept); self.assertIn('کاربر وارد Cart میشود.',kept); self.assertIn('تشخیص وجود کالای MO و AC در cart',kept)
+  self.assertNotIn('6.2 Rule های الگوریتم:',kept)
+  self.assertEqual([u['kept_as'] for u in report['unmapped_headings'] if u['heading']=='6.2 Rule های الگوریتم:'],['empty in the source; nothing was imported from it'])
+  self.assertTrue(any(u.startswith("Source section '13 تاییدکنندگان (Approvers)' was not recognised") for u in report['unresolved']))
+  self.assertIn('Unmapped Source Sections is still present: imported content has not been categorised into the canonical sections.',self.validate(out)['errors'])
+ def test_user_stories_become_requirements_and_sub_bullets_stay_under_their_parent(self):
+  out,report=self.imported(CROSS_EXPORT)
+  fr=out.split('## Functional Requirements\n',1)[1].split('\n## ',1)[0]
+  self.assertEqual(report['functional_requirements'],3)
+  self.assertEqual(fr.strip(),'**فاز اول:**\n- FR-01: به عنوان کاربر می خواهم با ورود به صفحه کارت، ریکامندور اکسسوری را مشاهده کنم.\n- FR-02: در صورتی که کاربر وارد صفحه کارت شد کروسل نمایش داده می شود.\n  - موبایل\n  - هدفون\n- FR-03: در این کروسل حداقل 4 محصول و حداکثر 16 محصول نمایش داده می شود.')
+  self.assertEqual(self.validate(out.replace('Status: DRAFT','Status: READY_FOR_ENGINEERING'))['requirements'],{'FR-01':'به عنوان کاربر می خواهم با ورود به صفحه کارت، ریکامندور اکسسوری را مشاهده کنم.','FR-02':'در صورتی که کاربر وارد صفحه کارت شد کروسل نمایش داده می شود.','FR-03':'در این کروسل حداقل 4 محصول و حداکثر 16 محصول نمایش داده می شود.'})
+ def test_pdf_export_is_refused_with_guidance(self):
+  (self.repo/'export.pdf').write_bytes(b'%PDF-1.7\n%\xe2\xe3\xcf\xd3\n1 0 obj<<>>endobj\n')
+  r=self.importer('--in=export.pdf','--id=FA-1'); self.assertEqual(r.returncode,2); self.assertIn('PDF',r.stderr); self.assertIn('.docx',r.stderr)
+ def confluence(self,**state):
+  self.state_c=self.outer/'confluence.json'; self.state_c.write_text(json.dumps({'pages':{'180753756':{'title':'Cross-selling','storage':CROSS_EXPORT.split('\n',1)[1],'version':10,'space':'B2BTP'}},**state}))
+  binpath=self.outer/'cbin'; binpath.mkdir(exist_ok=True); target=binpath/'curl'; shutil.copyfile(P/'scripts/claude/tests/fixtures/mock_confluence.py',target); target.chmod(0o755)
+  self.env['PATH']=str(binpath)+os.pathsep+self.env['PATH']; self.env['CES_CONFLUENCE_MOCK']=str(self.state_c); self.env['CONFLUENCE_TOKEN']='s3cr3t-token'
+  self.conf['confluence_hosts']=['docs.test']; self.saveconf()
+  return 'https://docs.test/spaces/B2BTP/pages/180753756/Cross-selling'
+ def test_confluence_url_import_fetches_storage_format_and_hides_the_token(self):
+  url=self.confluence(); r=self.importer('--url='+url,'--id=CROSS-1','--save-source=docs/prd/sources/CROSS-1.xhtml')
+  self.assertEqual(r.returncode,0,r.stderr); report=json.loads(r.stderr)
+  self.assertEqual(report['source_format'],'confluence-rest/storage'); self.assertEqual(report['confluence']['title'],'Cross-selling'); self.assertEqual(report['confluence']['version'],10); self.assertEqual(report['confluence']['saved_to'],'docs/prd/sources/CROSS-1.xhtml')
+  self.assertTrue(r.stdout.startswith('# CROSS-1 - Cross-selling\n')); self.assertIn('| وضعیت | COMPLETED |',r.stdout)
+  calls=json.loads(self.state_c.read_text())['calls']; self.assertEqual(len(calls),1); self.assertIn('/rest/api/content/180753756?expand=body.storage',calls[0]['url'])
+  self.assertIn('header = "Authorization: Bearer s3cr3t-token"',calls[0]['header_config']); self.assertNotIn('s3cr3t',' '.join(calls[0]['argv'])); self.assertNotIn('s3cr3t',r.stdout+r.stderr)
+  self.assertNotIn('-L',calls[0]['argv']); self.assertIn('=https',calls[0]['argv'])
+ def test_confluence_cloud_prefix_fallback_and_failure_modes(self):
+  url=self.confluence(prefix='/wiki/rest/api/content/'); r=self.importer('--url='+url,'--id=CROSS-1'); self.assertEqual(r.returncode,0,r.stderr)
+  calls=json.loads(self.state_c.read_text())['calls']; self.assertEqual(len(calls),2); self.assertIn('/wiki/rest/api/content/',calls[1]['url'])
+  self.confluence(deny=True); r=self.importer('--url='+url,'--id=CROSS-1'); self.assertEqual(r.returncode,2); self.assertIn('denied access (HTTP 403)',r.stderr)
+  self.confluence(unreachable=True); r=self.importer('--url='+url,'--id=CROSS-1'); self.assertEqual(r.returncode,2); self.assertIn('company network',r.stderr)
+  self.confluence(); r=self.importer('--url=https://other.test/spaces/X/pages/1/T','--id=CROSS-1'); self.assertEqual(r.returncode,2); self.assertIn("not allowlisted",r.stderr); self.assertEqual(json.loads(self.state_c.read_text()).get('calls',[]),[])
+  r=self.importer('--url=https://docs.test/spaces/B2BTP/overview','--id=CROSS-1'); self.assertEqual(r.returncode,2); self.assertIn('page id',r.stderr)
+  self.env.pop('CONFLUENCE_TOKEN'); r=self.importer('--url='+url,'--id=CROSS-1'); self.assertEqual(r.returncode,2); self.assertIn('CONFLUENCE_TOKEN',r.stderr)
+  self.env['CONFLUENCE_USER']='me'; self.env['CONFLUENCE_API_TOKEN']='pw'; r=self.importer('--url='+url,'--id=CROSS-1'); self.assertEqual(r.returncode,0,r.stderr)
+  self.assertIn('Authorization: Basic '+__import__('base64').b64encode(b'me:pw').decode(),json.loads(self.state_c.read_text())['calls'][-1]['header_config'])
+  (self.repo/'e.xhtml').write_text(CROSS_EXPORT); self.assertEqual(self.importer('--in=e.xhtml','--url='+url,'--id=CROSS-1').returncode,2); self.assertEqual(self.importer('--id=CROSS-1').returncode,2)
+ def test_sub_heading_naming_the_current_section_stays_inside_it_and_roadmap_phases_stay_in_rollout(self):
+  src='<h1>Buy again</h1><h2>اهداف</h2><h3>Goal</h3><p>افزایش سهم خرید تکراری.</p><h3>Key Results</h3><table><tr><th>KR</th><th>Target</th></tr><tr><td>Repeat rate</td><td>10%</td></tr></table><h3>Guardrail Metrics</h3><ul><li>Checkout success rate ثابت بماند.</li></ul><h2>رودمپ و ایتریشن‌ها</h2><h3>Phase 1</h3><p>سکشن در PLP.</p><h3>Phase 2</h3><p>صفحه مستقل.</p><h2>Out of Scope</h2><p>Reorder کامل سفارش.</p>'
+  out,report=self.imported(src)
+  section=lambda name: out.split('## '+name+'\n',1)[1].split('\n## ',1)[0]
+  self.assertEqual(section('Goals').strip(),'**Goal**\nافزایش سهم خرید تکراری.')
+  self.assertIn('| Repeat rate | 10% |',section('Success Metrics')); self.assertIn('**Guardrail Metrics**\n- Checkout success rate ثابت بماند.',section('Success Metrics'))
+  self.assertEqual(section('Rollout / Migration Expectations').strip(),'**Phase 1**\nسکشن در PLP.\n\n**Phase 2**\nصفحه مستقل.')
+  self.assertEqual(section('Out of Scope').strip(),'Reorder کامل سفارش.'); self.assertNotIn('## Unmapped Source Sections',out)
+  self.assertEqual([m['section'] for m in report['heading_matches']],['Goals','Goals','Success Metrics','Success Metrics','Rollout / Migration Expectations','Out of Scope'])
+ def test_images_links_and_structure_only_sections_are_never_silently_dropped(self):
+  src=('<h1>نمایش خریدهای قبلی</h1><h2>توصیف مسئله (Problem Definition)</h2>'
+   '<p>کاربران کالای تکراری را دوباره پیدا نمی‌کنند. <ac:image ac:width="600"><ri:attachment ri:filename="chart.png"/></ac:image></p>'
+   '<h2>طراحی اولیه و فلو کاربر</h2><p><ac:link><ri:page ri:content-title="Buy Again Flow"/></ac:link></p>'
+   '<p><ac:image><ri:attachment ri:filename="wireframe.png"/></ac:image></p>'
+   '<h3>Phase 1</h3><p><ac:image><ri:url ri:value="https://figma.com/proto/abc"/></ac:image></p><h3>Phase 2</h3>'
+   '<h2>نیازمندی‌های فنی</h2><h3>Backend</h3><p>اندپوینت جدید. <ac:link><ri:attachment ri:filename="api.yaml"/><ac:plain-text-link-body><![CDATA[قرارداد API]]></ac:plain-text-link-body></ac:link></p>')
+  out,report=self.imported(src)
+  self.assertIn('کاربران کالای تکراری را دوباره پیدا نمی‌کنند. [image - attachment: chart.png]',out)
+  kept=out.split('## Unmapped Source Sections\n',1)[1]
+  self.assertIn('طراحی اولیه و فلو کاربر',report['unmapped_sections_kept'])
+  for fragment in ['**طراحی اولیه و فلو کاربر**','[link - page: Buy Again Flow]','[image - attachment: wireframe.png]','**Phase 1**','[image - https://figma.com/proto/abc]','**Phase 2**','قرارداد API [link - attachment: api.yaml]']:
+   self.assertIn(fragment,kept,fragment)
+  self.assertNotIn('\n [image',out)
+ def test_a_person_reference_says_the_export_carries_no_name(self):
+  out,unused=self.imported('<h1>T</h1><h2>شرح مسئله</h2><p>نگارنده: <ac:link><ri:user ri:userkey="2c9280829c46827c"/></ac:link></p>')
+  self.assertIn('نگارنده: [link - user mention - Confluence exports no display name; key 2c9280829c46827c]',out)
+ def test_report_says_where_every_unrecognised_heading_went(self):
+  src=('<h1>T</h1><h2>توصیف مسئله (Problem Definition)</h2><p>متن مسئله.</p><h3>جزئیات بررسی</h3><p>جزئیات.</p>'
+   '<h2>راه‌حل نهایی</h2><p>راهکار.</p><h3>شرایط نمایش</h3><p>شرط.</p>'
+   '<h2>طراحی اولیه و فلو کاربر</h2><p><br/></p><hr/>'
+   '<h2>ریسک‌ها</h2><p>ریسک اول.</p>')
+  out,report=self.imported(src)
+  where={u['heading']:u['kept_as'] for u in report['unmapped_headings']}
+  self.assertEqual(where['جزئیات بررسی'],'sub-heading kept inside Problem Statement')
+  self.assertEqual(where['راه‌حل نهایی'],'its own entry under Unmapped Source Sections')
+  self.assertEqual(where['شرایط نمایش'],'sub-heading of the unmapped source section "راه‌حل نهایی"')
+  self.assertEqual(where['طراحی اولیه و فلو کاربر'],'empty in the source; nothing was imported from it')
+  self.assertEqual(report['unmapped_sections_kept'],['راه‌حل نهایی'])
+  self.assertIn("Source section 'طراحی اولیه و فلو کاربر' is empty in the source - it has a heading and no content, so nothing was imported from it. Confirm with the accountable human whether it was left unwritten.",report['unresolved'])
+  self.assertTrue(all("Source section 'طراحی اولیه و فلو کاربر' was not recognised" not in u for u in report['unresolved']))
+  self.assertIn('**جزئیات بررسی**\nجزئیات.',out); self.assertIn('**شرایط نمایش**\nشرط.',out.split('## Unmapped Source Sections')[1])
+ def test_sub_headings_of_a_mapped_section_survive_even_with_an_empty_body(self):
+  src=('<h1>T</h1><h2>توصیف مساله (Problem Definition)</h2><h3>دسته‌بندی مسائل اصلی</h3>'
+   '<p><strong>۱. تغییر نماینده مشتریان حقوقی</strong></p><p>نماینده شرکت نقش کلیدی دارد.</p>'
+   '<p><strong>۲. تغییر شماره موبایل</strong></p><p>کاربر شماره خود را از دست می‌دهد.</p>'
+   '<h2>رودمپ و ایتریشن ها (Roadmap and Iteration)</h2>'
+   '<h3>Iteration 1: تغییر نماینده</h3><ul><li><p><br/></p></li></ul>'
+   '<h3>Iteration 2: تغییر شماره</h3><ul><li><p><br/></p></li></ul>')
+  out,report=self.imported(src)
+  section=lambda name: out.split('## '+name+'\n',1)[1].split('\n## ',1)[0].strip()
+  self.assertEqual(section('Rollout / Migration Expectations'),'**Iteration 1: تغییر نماینده**\n**Iteration 2: تغییر شماره**')
+  self.assertNotIn('Rollout / Migration Expectations',report['sections_empty'])
+  self.assertTrue(all("Section 'Rollout / Migration Expectations' is empty" not in u for u in report['unresolved']))
+  self.assertEqual(section('Problem Statement'),'**دسته‌بندی مسائل اصلی**\n**۱. تغییر نماینده مشتریان حقوقی**\nنماینده شرکت نقش کلیدی دارد.\n\n**۲. تغییر شماره موبایل**\nکاربر شماره خود را از دست می‌دهد.')
+  where={u['heading']:u['kept_as'] for u in report['unmapped_headings']}
+  self.assertEqual(where['دسته‌بندی مسائل اصلی'],'sub-heading kept inside Problem Statement')
+  self.assertEqual(where['Iteration 1: تغییر نماینده'],'sub-heading kept inside Rollout / Migration Expectations')
+  self.assertNotIn('## Unmapped Source Sections',out)
+ def test_no_source_text_is_lost_and_only_mapped_headings_are_renamed(self):
+  """The whole promise of the importer: every statement of the source survives into the draft."""
+  out,report=self.imported(CROSS_EXPORT)
+  renamed={h for hs in report['sections_mapped'].values() for h in hs}
+  norm=lambda t: re.sub(r'\s+',' ',t).strip()
+  body=re.sub(r'<!\[CDATA\[(.*?)\]\]>',r'\1',CROSS_EXPORT,flags=re.S)
+  body=re.sub(r'<ac:parameter\b(?![^>]*ac:name="title")[^>]*>.*?</ac:parameter>','',body,flags=re.S|re.I)
+  fragments=[f for f in (norm(html.unescape(re.sub(r'<[^>]+>',' ',c))) for c in re.split(r'(?=<)',body)) if len(f)>=12]
+  self.assertGreater(len(fragments),25,'the fixture must exercise a real page')
+  rendered=norm(out)
+  # A source fragment may be absent only because it is a chapter heading replaced by its canonical section
+  # name - and then the report must say so. Anything else is content the conversion dropped.
+  unnumbered=lambda f: re.sub(r'\A\s*(?:[-*•]|[0-9\u06f0-\u06f9]{1,3}[-.)])\s*','',f)
+  for fragment in fragments:
+   # A numbered story keeps its text and exchanges its own "1-" for the FR-01 identifier.
+   if fragment in rendered or unnumbered(fragment) in rendered: continue
+   self.assertIn(fragment,renamed,'source text lost: '+fragment)
+  for heading in renamed:
+   self.assertIn(heading,[u for u in sum(report['sections_mapped'].values(),[])])
+ def test_title_missing_is_reported_not_taken_from_a_section_heading(self):
+  out,report=self.imported('<h2>شرح مسئله</h2><p>متن</p>')
+  self.assertTrue(out.startswith('# FA-1 - imported product contract\n')); self.assertTrue(any(u.startswith('Title was not found') for u in report['unresolved']))
 
 class WorkflowTests(Fixture):
  def test_no_task_blocks_check(self): self.assertEqual(self.broker('tester',{'action':'run_check','name':'pass'}).returncode,2)
@@ -206,6 +520,29 @@ class WorkflowTests(Fixture):
   for bad in ['b'*40,'not-a-sha','']:
    with self.subTest(base=bad):
     self.assertEqual(self.php("CES\\output(CES\\openTask('sess-bad',$x));",{'task_id':'T-1','workflow':'peer-review','base_sha':bad}).returncode,2)
+ def test_diagnosis_roles_may_reproduce_but_pure_reviewers_never_execute(self):
+  self.open('incident'); self.assertEqual(self.checked('incident-investigator')['status'],'PASS'); self.assertEqual(self.checked('qa-support')['status'],'PASS')
+  for role in ['security-reviewer','database-reviewer','release-reviewer','tech-lead-reviewer','engineering-manager-reviewer','peer-reviewer','rca-analyzer','prd-reviewer','architect','product-manager','mr-review-publisher','engineering-orchestrator']:
+   with self.subTest(role=role): r=self.broker(role,{'action':'run_check','name':'pass'}); self.assertEqual(r.returncode,2); self.assertIn('Action not allowed',r.stderr+r.stdout)
+ def test_import_prd_is_a_product_manager_action_bound_to_the_task_prd(self):
+  self.open(); src=self.repo/'docs/prd/sources'; src.mkdir(); (src/'T-1.xhtml').write_text(CONFLUENCE_EXPORT)
+  for role in ['engineering-orchestrator','developer','prd-reviewer','architect']:
+   with self.subTest(role=role): self.assertEqual(self.broker(role,{'action':'import_prd','source':'docs/prd/sources/T-1.xhtml'}).returncode,2)
+  r=self.broker('product-manager',{'action':'import_prd','source':'docs/prd/sources/T-1.xhtml'}); self.assertEqual(r.returncode,2); self.assertIn('already exists',r.stdout)
+  d=self.decode(self.broker('product-manager',{'action':'import_prd','source':'docs/prd/sources/T-1.xhtml','overwrite':True,'owner':'Named human'}))
+  self.assertEqual(d['status'],'IMPORTED'); self.assertEqual(d['prd_path'],'docs/prd/T-1.md'); self.assertEqual(d['report']['acceptance_criteria'],2)
+  text=(self.repo/'docs/prd/T-1.md').read_text(); self.assertIn('Status: DRAFT',text); self.assertIn('Owner: Named human',text); self.assertIn('| Auth & Token | 10 days | Backend |',text)
+  self.assertEqual(self.report('product-manager','READY_FOR_ENGINEERING',prd_path='docs/prd/T-1.md').returncode,2)
+  for bad in [{'source':'README.md'},{'source':'docs/prd/missing.xhtml'},{'source':'docs/prd/sources/T-1.xhtml','overwrite':'yes'},{'source':'docs/prd/sources/T-1.xhtml','overwrite':True,'owner':'a\nb'},{'source':'../outside.xhtml'}]:
+   with self.subTest(bad=bad): self.assertEqual(self.broker('product-manager',{'action':'import_prd',**bad}).returncode,2)
+ def test_import_prd_from_confluence_url_saves_the_source_for_review(self):
+  self.open(); url=PrdImportTests.confluence(self)
+  self.assertEqual(self.broker('product-manager',{'action':'import_prd','url':url,'source':'docs/prd/T-1.md'}).returncode,2)
+  d=self.decode(self.broker('product-manager',{'action':'import_prd','url':url,'overwrite':True}))
+  self.assertEqual(d['status'],'IMPORTED'); self.assertEqual(d['source'],'docs/prd/sources/T-1.xhtml'); self.assertEqual(d['fetched']['title'],'Cross-selling'); self.assertEqual(d['fetched']['page_id'],'180753756')
+  self.assertTrue((self.repo/'docs/prd/sources/T-1.xhtml').read_text().startswith('<h1>Cross-selling</h1>')); self.assertIn('Status: DRAFT',(self.repo/'docs/prd/T-1.md').read_text())
+  self.assertNotIn('s3cr3t',json.dumps(d))
+  self.conf['confluence_hosts']=[]; self.saveconf(); r=self.broker('product-manager',{'action':'import_prd','url':url,'overwrite':True}); self.assertEqual(r.returncode,2); self.assertIn('not allowlisted',r.stdout)
  def test_task_scope_is_immutable(self):
   self.open(); self.assertEqual(self.php("CES\\output(CES\\openTask('test-session',$x));",{'task_id':'T-1','workflow':'feature','prd_path':'docs/prd/Other.md'}).returncode,2)
  def test_implicit_specialists_and_idempotent_task(self):
@@ -441,6 +778,22 @@ class InstallerTests(unittest.TestCase):
   r=self.install('--apply','--allow-host=git.internal.example'); self.assertEqual(r.returncode,0,r.stderr); c=json.loads((self.target/'.claude/engineering-system/config.json').read_text()); self.assertEqual(c['allowed_hosts'],['git.internal.example'])
  def test_explicit_allow_host_merges_existing_human_config(self):
   self.assertEqual(self.install('--apply','--allow-host=gitlab.company.test').returncode,0); f=self.target/'.claude/engineering-system/config.json'; c=json.loads(f.read_text()); c['allow_publish_nits']=True; f.write_text(json.dumps(c)); r=self.install('--apply','--allow-host=git.internal.example'); self.assertEqual(r.returncode,0,r.stderr); c2=json.loads(f.read_text()); self.assertTrue(c2['allow_publish_nits']); self.assertEqual(c2['allowed_hosts'],['git.internal.example','gitlab.company.test'])
+ def test_upgrade_adds_new_policy_keys_but_never_changes_human_values(self):
+  self.assertEqual(self.install('--apply').returncode,0); f=self.target/'.claude/engineering-system/config.json'
+  human={'version':3,'allowed_hosts':['git.company.test','docs.company.test'],'allow_publish_nits':False,'signoz_read_tools':[],'execution_isolated':False,'checks':{},'risk_patterns':{'security-reviewer':'~(?:auth|policy)~i'}}
+  f.write_text(json.dumps(human,indent=4)); r=self.install('--apply'); self.assertEqual(r.returncode,0,r.stderr); self.assertIn('added missing policy keys: confluence_hosts, notes',r.stdout)
+  c=json.loads(f.read_text()); self.assertEqual(c['confluence_hosts'],[]); self.assertIn('notes',c)
+  for key in human: self.assertEqual(c[key],human[key],key)
+  self.assertEqual(len(list((self.target/'.claude/engineering-system/backups').glob('*/.claude/engineering-system/config.json'))),1)
+  before=self.snapshot(); r=self.install('--apply'); self.assertEqual(r.returncode,0); self.assertIn('0 file changes',r.stdout); self.assertEqual(before,self.snapshot())
+ def test_explicit_allow_confluence_host(self):
+  r=self.install('--apply','--allow-confluence-host=docs.company.test'); self.assertEqual(r.returncode,0,r.stderr); f=self.target/'.claude/engineering-system/config.json'
+  self.assertEqual(json.loads(f.read_text())['confluence_hosts'],['docs.company.test']); self.assertEqual(json.loads(f.read_text())['allowed_hosts'],[])
+  c=json.loads(f.read_text()); c['allow_publish_nits']=True; f.write_text(json.dumps(c))
+  r=self.install('--apply','--allow-confluence-host=wiki.company.test','--allow-host=git.company.test'); self.assertEqual(r.returncode,0,r.stderr); c2=json.loads(f.read_text())
+  self.assertEqual(c2['confluence_hosts'],['docs.company.test','wiki.company.test']); self.assertEqual(c2['allowed_hosts'],['git.company.test']); self.assertTrue(c2['allow_publish_nits'])
+  r=self.install('--apply','--allow-confluence-host=docs.company.test'); self.assertEqual(r.returncode,0); self.assertIn('0 file changes',r.stdout); self.assertIn('host already trusted',r.stdout)
+  before=self.snapshot(); r=self.install('--apply','--allow-confluence-host=https://docs.company.test/x'); self.assertEqual(r.returncode,2); self.assertIn('--allow-confluence-host',r.stderr); self.assertEqual(before,self.snapshot())
  def test_invalid_allow_host_rejected_without_writes(self):
   before=self.snapshot(); r=self.install('--apply','--allow-host=https://git.example.com/path'); self.assertEqual(r.returncode,2); self.assertEqual(before,self.snapshot())
  def test_gitignore_untouched_by_default_and_opt_in_append(self):
