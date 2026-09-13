@@ -38,7 +38,10 @@ try {
         CES\authorizeRead((string)$path,$session,$transcript); exit(0);
     }
     if ($tool==='Agent') {
-        if ($role!=='engineering-orchestrator' || !in_array($args['subagent_type'] ?? '',array_diff(CES\ROLES,['engineering-orchestrator']),true)) throw new RuntimeException('Only the main orchestrator may delegate to a listed CES specialist.');
+        // Two distinct refusals. Reporting both with one message told a correctly-running orchestrator that it
+        // was not the orchestrator, and sent it looking for the wrong problem.
+        if ($role!=='engineering-orchestrator') throw new RuntimeException('CES roles do not delegate; only the main orchestrator does. Do the work yourself with the tools your role has.');
+        if (!in_array($args['subagent_type'] ?? '',array_diff(CES\ROLES,['engineering-orchestrator']),true)) throw new RuntimeException('Delegate only to a listed CES specialist. Generic helper agents are not part of the role contract: to inspect the repository yourself use Read, Grep, Glob or the broker context action.');
         if (!CES\taskExists($session)) throw new RuntimeException('No CES task is open. Pre-task MR/config preflight must be performed directly by engineering-orchestrator; do not delegate a specialist until task_open succeeds.');
         if (in_array($args['subagent_type'],CES\DEVELOPERS,true)) CES\implementationGate($session);
         exit(0);

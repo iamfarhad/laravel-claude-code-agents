@@ -132,7 +132,7 @@ python3 tools/package_integrity.py --check
 php scripts/claude/checks/self-check.php
 ```
 
-v3.2.6 is verified by **152 regression tests** across guards, PRD validation, workflow gates, MR publishing and installer behavior. See [TEST_REPORT.md](TEST_REPORT.md) for the scope and limitations.
+v3.2.6 is verified by **153 regression tests** across guards, PRD validation, workflow gates, MR publishing and installer behavior. See [TEST_REPORT.md](TEST_REPORT.md) for the scope and limitations.
 
 GitHub Actions runs lint, integrity verification, regression tests and self-check on pushes and pull requests.
 

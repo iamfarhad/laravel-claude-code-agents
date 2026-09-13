@@ -147,7 +147,15 @@ class GuardTests(Fixture):
  def test_signoz_allowlist_and_mutations(self):
   read='mcp__signoz__signoz_search_logs'; write='mcp__signoz__signoz_create_alert'; self.assertEqual(self.hook('tester',read,{}).returncode,2)
   self.conf['signoz_read_tools']=[read,write]; self.saveconf(); self.assertEqual(self.hook('tester',read,{}).returncode,0); self.assertEqual(self.hook('tester',write,{}).returncode,2)
- def test_nested_agent_denied(self): self.assertEqual(self.hook('tester','Agent',{'subagent_type':'developer'}).returncode,2)
+ def test_nested_agent_denied(self):
+  r=self.hook('tester','Agent',{'subagent_type':'developer'}); self.assertEqual(r.returncode,2); self.assertIn('CES roles do not delegate',r.stderr)
+ def test_generic_helper_agent_denied_with_its_own_message(self):
+  self.open()
+  for helper in ['Explore','general-purpose','Plan','claude']:
+   with self.subTest(helper=helper):
+    r=self.hook('engineering-orchestrator','Agent',{'subagent_type':helper}); self.assertEqual(r.returncode,2)
+    self.assertIn('Generic helper agents are not part of the role contract',r.stderr); self.assertNotIn('only the main orchestrator does',r.stderr)
+  self.assertEqual(self.hook('engineering-orchestrator','Agent',{'subagent_type':'peer-reviewer'}).returncode,0)
  def test_pretask_specialist_delegation_denied_with_actionable_message(self):
   r=self.hook('engineering-orchestrator','Agent',{'subagent_type':'peer-reviewer'}); self.assertEqual(r.returncode,2); self.assertIn('Pre-task MR/config preflight',r.stderr)
  def test_developer_delegation_requires_product_gate(self):

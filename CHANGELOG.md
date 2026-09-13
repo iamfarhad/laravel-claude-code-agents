@@ -65,6 +65,13 @@
 - A person reference now says why it carries no name. Confluence stores only an opaque user key and
   resolves the display name at render time, so an author or approver name is genuinely absent from the
   export; the placeholder states that instead of reading as though a name had been dropped.
+- **Converting a PRD from a URL sent the orchestrator hunting for a local file.** Its import instruction only
+  described the file case, so given a page link it searched the repository for an export that does not exist,
+  collected broker denials and finally reached for a generic helper agent. The instruction now handles both
+  source forms and says that a URL is passed straight through to `product-manager`, with no investigation of
+  its own. The `Agent` guard also reported two different refusals with one message, telling a correctly-running
+  orchestrator that it was not the orchestrator; delegating from a non-orchestrator role and delegating to a
+  non-CES agent now say what each actually is, and the second names the tools to use instead.
 - **The heading alias table is now deliberately conservative.** Every alias is a mapping decision taken in
   code without having seen the document, and a wrong one silently files the source's meaning under the wrong
   contract - `phase 2` sent a roadmap phase to Out of Scope on a real page. An alias now has to name exactly

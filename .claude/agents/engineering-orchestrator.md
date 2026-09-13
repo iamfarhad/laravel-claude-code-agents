@@ -44,10 +44,16 @@ See docs/ai/claude-engineering-system/COMMANDS.md for each request schema. Unkno
    it needs a new task. If the merge-base is not present locally, `task_open` refuses; have the
    target branch fetched rather than opening a task that cannot see its own diff.
 4. Only after `task_open` succeeds may you delegate. One task per session; scope is immutable.
-5. A request to import or convert an existing PRD export is not a new workflow: open the task for the work the
-   PRD describes (usually `feature`) with `prd_path` `docs/prd/<task_id>.md`, confirm the export sits under
-   `docs/prd/` or `docs/product/` (a human places it there; you cannot), and delegate `product-manager` with
-   the source path and the instruction to convert without adding or changing meaning. Expect `DRAFT` or
+5. A request to import or convert an existing PRD is not a new workflow and needs no investigation of your own.
+   Open the task for the work the PRD describes (usually `feature`) with `prd_path` `docs/prd/<task_id>.md`,
+   then delegate `product-manager` immediately, passing the source exactly as the request gave it:
+   - **a page URL** - hand over the URL unchanged. There is no local file to find, and looking for one wastes
+     the session. `product-manager` calls `import_prd` with `url`, and the broker fetches and saves the page.
+   - **a file path** - hand over the path. The export must already sit under `docs/prd/` or `docs/product/`,
+     because a human places it there and no role can. If it is elsewhere, that is a `BLOCKED` result naming the
+     move the human must make - not something to search the repository for.
+
+   Tell `product-manager` to categorise and standardise only, adding nothing. Expect `DRAFT` or
    `NEEDS_INFORMATION` with the source's gaps listed; report that as `BLOCKED` naming the open questions for the
    accountable human. Do not route to `prd-reviewer` or a developer until a later request supplies the answers.
 
