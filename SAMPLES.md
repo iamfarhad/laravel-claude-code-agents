@@ -221,13 +221,34 @@ Two passes happen. First the product-manager runs the deterministic importer thr
 `Functional Requirements`, `فرض/وقتی/آنگاه/تایید/نیازمندی` become `Given/When/Then/Verification/Requirement`,
 `FR-۰۱` becomes `FR-01`), turns HTML and Word tables into markdown tables - including an acceptance-criteria
 table whose columns are the Given/When/Then labels, one criterion per row - keeps bold group labels above their
-requirements, drops numbered container chapters that have no content of their own, and strips the RTL marks and
-non-breaking spaces that break matching. **Body text stays in Persian, digits included**; only the structure is
-normalised, and the result is always `Status: DRAFT`.
+requirements, turns images and links into references that name the attachment or URL, and strips the RTL marks
+and non-breaking spaces that break matching. **Body text stays in Persian, digits included**; only the structure
+is normalised, and the result is always `Status: DRAFT`.
 
-Sections with no CES equivalent - solution options, the user flow, algorithm rules, FAQ, the approver table, the
-author/status block at the top - are kept verbatim under `Unmapped Source Sections` rather than filed under
-whatever section came before them, and readiness is refused while that section exists.
+Heading recognition is deliberately cautious. An alias fires only when the source heading names exactly one
+canonical section, so `توصیف مساله (Problem Definition)` maps and `متریک ها و اهداف (Metrics & Goals)` does not -
+it covers two sections, and guessing one would file your metrics under Goals without telling you. Anything not
+recognised - solution options, the user flow, algorithm rules, technical notes, FAQ, the approver table, the
+author block at the top - is kept verbatim under `Unmapped Source Sections`, and the validator refuses readiness
+while that section exists. A missed mapping costs you one move; a wrong one silently changes the contract.
+
+The importer's report on stderr tells you where everything went, so you never have to guess whether text was
+lost:
+
+```json
+{ "sections_mapped": { "Problem Statement": ["توصیف مساله (Problem Definition)"] },
+  "unmapped_headings": [
+    { "heading": "تحلیل رفتار خرید", "level": 2, "kept_as": "sub-heading kept inside Context / Evidence" },
+    { "heading": "راه حل نهایی",     "level": 1, "kept_as": "its own entry under Unmapped Source Sections" },
+    { "heading": "طراحی اولیه",      "level": 1, "kept_as": "empty in the source; nothing was imported from it" }
+  ],
+  "unmapped_sections_kept": ["راه حل نهایی"], "functional_requirements": 0, "acceptance_criteria": 0 }
+```
+
+`kept_as` has one of four values: kept inside a canonical section, kept inside another unmapped section, its own
+entry, or empty in the source. There is no fifth value for "dropped". A chapter that exists in Confluence but
+has no body - a design section nobody filled in - is reported as empty rather than disappearing, because that is
+a gap for you to close, not a conversion failure.
 
 Then the product-manager reads the draft next to the source and finishes the conversion by hand, under a rule the
 `prd-reviewer` later enforces by diffing the two: every source statement appears once, in its section, in its own
@@ -244,7 +265,14 @@ php scripts/claude/tools/import-prd.php --in=docs/prd/sources/B2B-142.xhtml \
 ```
 
 Recognition is extendable: `--print-map` prints the heading and label tables as JSON, and an edited copy passed
-as `--map=map.json` adds your team's own wording.
+as `--map=map.json` adds your team's own wording. That file is the right home for judgements about your own
+template - if your `Metrics & Goals` chapter is in practice always a metrics table, say so there once instead of
+moving it by hand every time.
+
+Two things it deliberately will not do. It never writes to Confluence. And it never removes anything, including
+the template hint lines your page template carries (`توضیح کلی مسئله، بیان اهداف و ...`) and any personal data
+a colleague pasted into the page - a test phone number in a "supportive data" section lands in your repository
+verbatim. Read the draft before you commit it.
 
 ### Things worth adding to any prompt
 
@@ -377,7 +405,15 @@ no auto-fixer.
 | `CES_DENIED: Bash is restricted to the exact CES JSON-heredoc broker` | A role tried a raw shell command | Nothing. Roles reach the shell only through the broker |
 | `CES_DENIED: Protected governance/product path` | A role tried to edit `.claude/`, CI config, or product docs it does not own | Nothing. You edit those |
 | `CES_DENIED: Direct secret-file access is denied` | Something tried to read `.env` or a key | Nothing. Reference the location instead |
-| `CES_DENIED: SigNoz tool is not explicitly allowlisted` | Telemetry access is default-deny | Add the exact read-only tool names to `signoz_read_tools`, or accept that the conclusion stays unverified |
+| `CES_DENIED: SigNoz tool is not explicitly allowlisted` | Telemetry access is default-deny | Two steps, both yours: add the exact read-only tool names to `signoz_read_tools`, **and** add `mcp__signoz__*` to the `tools:` line of the roles that need it. Allowlisting alone leaves the tool invisible to the role |
+| `Confluence host '<host>' is not allowlisted` | The PRD importer reads pages only from hosts a human trusted | Add it to `confluence_hosts`, or reinstall with `--allow-confluence-host=<host>`. It is a separate list from `allowed_hosts`, which is for MR providers |
+| `Confluence credentials are not set` | Tokens come from your shell, never from a project file | `export CONFLUENCE_TOKEN=...` (Data Center) or `CONFLUENCE_USER` + `CONFLUENCE_API_TOKEN` (Cloud) |
+| `Confluence denied access (HTTP 401)` / `(HTTP 403)` | The token is invalid, expired, or its account cannot view the page | Issue a new token, or get the account access to the page |
+| `Confluence request failed ... Is the company network reachable` | An internal host is not reachable from this machine, or its CA is not trusted by curl | Connect to the company network; point `CURL_CA_BUNDLE` at your internal CA |
+| `PDF exports scramble right-to-left text` | A PDF's text layer destroys Persian word order, so the source cannot be recovered from it | Export the page as `.docx` or storage-format XHTML, or import from the page URL |
+| `Place the export under docs/prd/ or docs/product/` | A role may only read an export a human deliberately put in the product-document directories | Save the file there first; no role can fetch it for you |
+| `The task PRD already exists ... Pass "overwrite": true` | A re-import would discard the editing already done on the draft | Confirm you want a fresh `DRAFT`, or keep editing the existing file |
+| `Unmapped Source Sections is still present` | An imported draft still holds source text nobody has placed in a section | Move each entry into the section it belongs to, then delete that section. Deleting the text instead would lose it |
 | `No CES task is open` | A specialist was asked to work before intake finished | Nothing. Preflight happens before delegation by design |
 | An empty diff on an MR review | The task was opened without the merge-base | Start a new task; scope is immutable. Fetch the target branch first so the merge-base exists locally |
 
@@ -400,6 +436,8 @@ One that is *not* a block: while specialist reviews are still running, the sessi
 | Read or echo `.env`, keys or credentials | Secrets stay out of transcripts and comments | Reference the location |
 | Invent a version, owner, metric, SLO or approval | An unverified fact is worse than an unknown | Supply it, or accept the `unknown` |
 | Claim something is verified in production | Nothing here observes production | Verify after you deploy |
+| Write anything to Confluence | The importer reads one page and nothing else | Edit the page yourself |
+| Invent a requirement or acceptance criterion while converting a PRD | A reasonable guess still changes what engineering builds | Answer the open questions it lists |
 
 ---
 
@@ -438,7 +476,7 @@ CES_REQUEST
 | `context` | all but the publisher | `status`, `head`, `log` or `diff` - no arbitrary git arguments |
 | `fetch_mr` | orchestrator, peer, tech lead, EM | MR metadata, exact head commit and the changed-file list (not the diff bodies) |
 | `validate_prd` | all but the publisher | Structurally validates the current task's PRD |
-| `import_prd` | product manager | Converts an exported PRD placed under `docs/prd/` into a `DRAFT` at the task's PRD path; structure only |
+| `import_prd` | product manager | Converts a PRD into a `DRAFT` at the task's PRD path, from `source` (an export a human placed under `docs/prd/`) or `url` (a Confluence page on an allowlisted host); structure only |
 | `run_check` | developers, testers, QA support, incident investigator, performance reviewer | Runs a named preset from your policy (whose `roles` list must also name the caller) and records a receipt |
 | `publish_review` | publisher | Posts the stored review to the exact reviewed commit; `dry_run` posts nothing |
 | `finalize` | orchestrator | Re-checks every receipt, criterion, gate and publication before recommending completion |
@@ -607,7 +645,7 @@ rather than replacing it, and keep `allowed_hosts`, `risk_patterns` and `signoz_
     "unit": {
       "trusted": true,
       "kind": "test",
-      "roles": ["developer","hotfix-developer","upgrade-developer","tester","regression-tester","qa-support"],
+      "roles": ["developer","hotfix-developer","upgrade-developer","tester","regression-tester","qa-support","incident-investigator"],
       "argv": ["php","vendor/bin/phpunit","--testsuite","Unit"],
       "timeout_seconds": 300,
       "env": {"APP_ENV":"testing","DB_CONNECTION":"sqlite","DB_DATABASE":":memory:","QUEUE_CONNECTION":"sync","CACHE_STORE":"array","MAIL_MAILER":"array"}
@@ -642,6 +680,10 @@ Read this before setting `execution_isolated: true`:
   check on the real engine if that matters.
 - A check that modifies tracked files fails verification even when its assertions pass.
 - Never run untrusted MR code in a session that holds publication or telemetry credentials.
+- `roles` is the second gate. The broker allows `run_check` only to developers, testers, the two diagnosis roles
+  (`qa-support`, `incident-investigator`) and `performance-reviewer`, and then only if the preset's own `roles`
+  list names the caller. Give a reproduction preset to the diagnosis roles so a bug or incident can be
+  reproduced before anyone is allowed to change code. Every other reviewer reads receipts and never executes.
 
 ## Appendix E. Before you trust this in your repo
 
